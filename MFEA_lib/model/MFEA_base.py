@@ -8,6 +8,20 @@ from ..tasks.surrogate import GraphDataset
 import random
 from scipy.stats import kendalltau
 from sklearn.metrics import f1_score, confusion_matrix
+
+import pandas as pd
+
+class Recorder:
+    def __init__(self):
+        
+        pass
+    
+    def __open__():
+        pass
+    
+    def __exit__():
+        pass
+
 class model(AbstractModel.model):
     def compile(self, 
         IndClass: Type[Individual],
@@ -87,9 +101,11 @@ class betterModel(AbstractModel.model):
         tasks: list[AbstractTask], 
         crossover: Crossover.SBX_Crossover, mutation: Mutation.Polynomial_Mutation, selection: Selection.ElitismSelection, 
         *args, **kwargs):
+        self.surrogate_pipeline = None
         if 'surrogate_pipeline' in kwargs.keys():
             self.surrogate_pipeline = kwargs.get('surrogate_pipeline')
             self.dataset = GraphDataset(tasks = tasks)
+            
         return super().compile(IndClass, tasks, crossover, mutation, selection, *args, **kwargs)
     
     def fit(self, nb_generations, rmp = 0.3, nb_inds_each_task = 100, evaluate_initial_skillFactor = True, train_period = 5, start_eval = 6, *args, **kwargs) -> list[Individual]:
@@ -111,25 +127,27 @@ class betterModel(AbstractModel.model):
         
         for epoch in range(nb_generations):
             genes, costs, skf, bests, population= self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population)
-            self.dataset.append(genes, costs,skf, bests)
+            if self.surrogate_pipeline:
+                self.dataset.append(genes, costs,skf, bests)
             if epoch + 1 > start_eval:
                 reg_preds = []
                 cls_preds = []
                 cls_gts = []
                 gts = []
-                for d in self.dataset.latest_data:
-                    reg_predict, cls_predict = self.surrogate_pipeline.predict(d)
-                    reg_preds.append(reg_predict.detach().cpu().numpy()[0])
-                    cls_preds.append(1 if cls_predict.detach().cpu().numpy()[0] > 0.5 else 0)
-                    cls_gts.append(d.thresh_hold.cpu().numpy()[0])
-                    gts.append(d.y.cpu().numpy()[0])
-                
-                print(kendalltau(reg_preds, gts), f'F1: {f1_score(cls_gts, cls_preds)}')
-                print(confusion_matrix(cls_gts, cls_preds))
-            if (epoch + 1) % train_period == 0:
+                if self.surrogate_pipeline:
+                    for d in self.dataset.latest_data:
+                        reg_predict, cls_predict = self.surrogate_pipeline.predict(d)
+                        reg_preds.append(reg_predict.detach().cpu().numpy()[0])
+                        cls_preds.append(1 if cls_predict.detach().cpu().numpy()[0] > 0.5 else 0)
+                        cls_gts.append(d.thresh_hold.cpu().numpy()[0])
+                        gts.append(d.y.cpu().numpy()[0])
+                    
+                    print(kendalltau(reg_preds, gts), f'F1: {f1_score(cls_gts, cls_preds)}')
+                    print(confusion_matrix(cls_gts, cls_preds))
+            if (epoch + 1) % train_period == 0 and self.surrogate_pipeline:
                 self.surrogate_pipeline.train(self.dataset)
             
-                
+        
         print('\nEND!')
 
         #solve
