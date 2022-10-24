@@ -1,4 +1,3 @@
-from re import A
 import numpy as np
 from . import AbstractModel
 from ..operators import Crossover, Mutation, Selection
@@ -8,8 +7,10 @@ from ..tasks.surrogate import GraphDataset
 import random
 from scipy.stats import kendalltau
 from sklearn.metrics import f1_score, confusion_matrix
-
+import os
 import pandas as pd
+import traceback
+import subprocess
 
 class Recorder:
     def __init__(self):
@@ -100,12 +101,17 @@ class betterModel(AbstractModel.model):
         IndClass: Type,
         tasks: list, 
         crossover: Crossover.SBX_Crossover, mutation: Mutation.Polynomial_Mutation, selection: Selection.ElitismSelection, 
+        record: bool = False, 
+        merge: bool = False, 
+        save_path:str = None,
         *args, **kwargs):
         self.surrogate_pipeline = None
         if 'surrogate_pipeline' in kwargs.keys():
             self.surrogate_pipeline = kwargs.get('surrogate_pipeline')
             self.dataset = GraphDataset(tasks = tasks)
-            
+        self.record = record
+        self.merge = merge
+        self.save_path  = save_path
         return super().compile(IndClass, tasks, crossover, mutation, selection, *args, **kwargs)
     
     def fit(self, nb_generations, rmp = 0.3, nb_inds_each_task = 100, evaluate_initial_skillFactor = True, train_period = 5, start_eval = 6, *args, **kwargs) -> list:
@@ -124,29 +130,52 @@ class betterModel(AbstractModel.model):
         self.history_cost.append([ind.fcost for ind in population.get_solves()])
         
         self.render_process(0, ['Cost'], [self.history_cost[-1]], use_sys= True)
-        
-        for epoch in range(nb_generations):
-            genes, costs, skf, bests, population= self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population)
-            if self.surrogate_pipeline:
-                self.dataset.append(genes, costs,skf, bests)
-            if epoch + 1 > start_eval:
-                reg_preds = []
-                cls_preds = []
-                cls_gts = []
-                gts = []
-                if self.surrogate_pipeline:
-                    for d in self.dataset.latest_data:
-                        reg_predict, cls_predict = self.surrogate_pipeline.predict(d)
-                        reg_preds.append(reg_predict.detach().cpu().numpy()[0])
-                        cls_preds.append(1 if cls_predict.detach().cpu().numpy()[0] > 0.5 else 0)
-                        cls_gts.append(d.thresh_hold.cpu().numpy()[0])
-                        gts.append(d.y.cpu().numpy()[0])
                     
-                    print(kendalltau(reg_preds, gts), f'F1: {f1_score(cls_gts, cls_preds)}')
-                    print(confusion_matrix(cls_gts, cls_preds))
-            if (epoch + 1) % train_period == 0 and self.surrogate_pipeline:
-                self.surrogate_pipeline.train(self.dataset)
-            
+        try:
+            for epoch in range(nb_generations):
+                genes, costs, skf, bests, population= self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population)
+                
+                if self.record:
+                    if not hasattr(self, 'df'):
+                        columns = [f'genes_0_{i}' for i in range(genes.shape[-1])] + [f'genes_1_{i}' for i in range(genes.shape[-1])]  + ['cost', 'skill_factor', 'generation']
+                        self.df = pd.DataFrame(dict(zip(columns, [[] for _ in range(len(columns))]))).astype(np.int)
+                        
+                        self.writen = False
+                        
+                    # print(genes.transpose()[0].squeeze().shape, genes.shape)
+                    # print([genes.transpose[:,0,i].squeeze() for i in range(genes.shape[-1])] + [genes.transpose[:,1,i].squeeze() for i in range(genes.shape[-1])]  + [costs, skf])
+                    new_df = pd.DataFrame(dict(zip(
+                    columns,
+                    [genes[:,0,i].squeeze() for i in range(genes.shape[-1])] + [genes[:,1,i].squeeze() for i in range(genes.shape[-1])]  + [costs, skf, epoch]
+                    )))
+                    
+                    self.df = pd.concat([self.df, new_df])
+                if self.surrogate_pipeline:
+                    self.dataset.append(genes, costs,skf, bests)
+                if epoch + 1 > start_eval:
+                    reg_preds = []
+                    cls_preds = []
+                    cls_gts = []
+                    gts = []
+                    if self.surrogate_pipeline:
+                        for d in self.dataset.latest_data:
+                            reg_predict, cls_predict = self.surrogate_pipeline.predict(d)
+                            reg_preds.append(reg_predict.detach().cpu().numpy()[0])
+                            cls_preds.append(1 if cls_predict.detach().cpu().numpy()[0] > 0.5 else 0)
+                            cls_gts.append(d.thresh_hold.cpu().numpy()[0])
+                            gts.append(d.y.cpu().numpy()[0])
+                        
+                        print(kendalltau(reg_preds, gts), f'F1: {f1_score(cls_gts, cls_preds)}')
+                        print(confusion_matrix(cls_gts, cls_preds))
+                if (epoch + 1) % train_period == 0 and self.surrogate_pipeline:
+                    self.surrogate_pipeline.train(self.dataset)
+        except KeyboardInterrupt:
+            self.write_data()
+        except:
+            traceback.print_exc()
+            self.write_data()
+        
+        self.write_data()
         
         print('\nEND!')
 
@@ -203,3 +232,32 @@ class betterModel(AbstractModel.model):
         self.render_process((cur_epoch+1)/nb_generations, ['Cost'], [self.history_cost[-1]], use_sys= True)
         return np.stack([ind.genes for ind in sol]), np.hstack([ind.fcost for ind in sol]), \
                 np.hstack([ind.skill_factor for ind in sol]), last_best, population
+
+        
+    def write_data(self):
+        if not self.record:
+            return
+        if self.writen:
+            return
+        
+        dir_path = os.path.dirname(self.save_path)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+        
+        gene_cols = ['skill_factor']
+        for col in self.df.columns:
+            if 'gene' in col:
+                gene_cols.append(col)
+                
+        if self.merge:
+            self.df = pd.concat([pd.read_csv(os.path.join(dir_path,fname)) for fname in os.listdir(dir_path)] + [self.df])
+            assert subprocess.call(f'rm {dir_path}/*', shell = True) == 0
+             
+        self.df = self.df.drop_duplicates(gene_cols)
+        
+        self.df.to_csv(self.save_path, index = False)
+        self.writen = True
+        print(f'\n{self.df.shape[0]} genes has been writen to {self.save_path}!')
+        del self.df
+
+    
