@@ -299,7 +299,7 @@ def loadModel(PATH: str, ls_tasks=None, set_attribute=False) -> AbstractModel:
 
 class CompareModel():
     # TODO so sánh
-    def __init__(self, models=list[AbstractModel.model], label: list[str] = None) -> None:
+    def __init__(self, models=list, label: list = None) -> None:
         self.models = models
         if label is None:
             label = [m.name for m in self.models]
@@ -311,7 +311,7 @@ class CompareModel():
 
         self.label = label
 
-    def render(self, shape: tuple = None, min_cost=0, nb_generations: int = None, step=1, figsize: tuple[int, int] = None, dpi=200, yscale: str = None, re=False, label_shape=None, label_loc=None):
+    def render(self, shape: tuple = None, min_cost=0, nb_generations: int = None, step=1, figsize: tuple = None, dpi=200, yscale: str = None, re=False, label_shape=None, label_loc=None):
         assert np.all([len(self.models[0].tasks) == len(m.tasks)
                       for m in self.models])
         nb_tasks = len(self.models[0].tasks)
@@ -502,7 +502,7 @@ class CompareModel():
 
 
 class TuningModel:
-    def __init__(self, model_name, nb_run: int = 1, list_parameter: list[tuple] = []) -> None:
+    def __init__(self, model_name, nb_run: int = 1, list_parameter: list = []) -> None:
         self.best_compile_parameter = {}
         self.best_fit_parameter = {}
         self.model_name = model_name
@@ -589,7 +589,7 @@ class TuningModel:
 
         return model
     
-    def compare_between_2_ls_model(self, ls_model1: list[AbstractModel.model], ls_model2 : list[AbstractModel.model], min_value= 0 ):
+    def compare_between_2_ls_model(self, ls_model1: list, ls_model2 : list, min_value= 0 ):
         '''
         compare the result between models and return best model 
         [[model1_cec, model1_gecco], [model2_cec, model2_gecco]]
@@ -608,7 +608,7 @@ class TuningModel:
         return np.argmax(point_model)  
 
 
-    def take_idx_best_lsmodel(self, set_ls_model: list[list[AbstractModel.model]], min_value = 0 ):
+    def take_idx_best_lsmodel(self, set_ls_model: list, min_value = 0 ):
         best_idx = 0  
         for idx, ls_model in enumerate(set_ls_model[1:],start= 1 ):
             better_idx = self.compare_between_2_ls_model(set_ls_model[best_idx], ls_model, min_value)

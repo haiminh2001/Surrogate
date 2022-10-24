@@ -1,5 +1,3 @@
-from re import S
-from tkinter import Y
 import numpy as np
 import scipy.stats
 
@@ -11,7 +9,7 @@ class AbstractSearch():
         pass
     def __call__(self, *args, **kwargs) -> Individual:
         pass
-    def getInforTasks(self, tasks: list[AbstractTask], seed = None):
+    def getInforTasks(self, tasks: list, seed = None):
         self.dim_uss = max([t.dim for t in tasks])
         self.nb_tasks = len(tasks)
         self.tasks = tasks
@@ -33,7 +31,7 @@ class SHADE(AbstractSearch):
         self.p_ontop = p_ontop
         self.tournament_size = tournament_size
 
-    def getInforTasks(self, tasks: list[AbstractTask], seed=None):
+    def getInforTasks(self, tasks: list, seed=None):
         super().getInforTasks(tasks, seed)
         # memory of cr and F
         self.M_cr = np.zeros(shape = (self.nb_tasks, self.len_mem, ), dtype= float) + 0.5

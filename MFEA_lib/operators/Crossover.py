@@ -11,7 +11,7 @@ class AbstractCrossover():
 
     def __call__(self, pa: Individual, pb: Individual, skf_oa= None, skf_ob= None, *args, **kwargs) -> Tuple[Individual, Individual]:
         pass
-    def getInforTasks(self, IndClass: Type[Individual], tasks: list[AbstractTask], seed = None):
+    def getInforTasks(self, IndClass: Type, tasks: list, seed = None):
         self.dim_uss = max([t.dim for t in tasks])
         self.nb_tasks = len(tasks)
         self.tasks = tasks
@@ -69,7 +69,7 @@ class newSBX(AbstractCrossover):
         self.gamma = gamma
         self.alpha = alpha
     
-    def getInforTasks(self,  IndClass: Type[Individual], tasks: list[AbstractTask], seed = None):
+    def getInforTasks(self,  IndClass: Type, tasks: list, seed = None):
         super().getInforTasks(IndClass, tasks, seed= seed)
         self.prob = np.zeros((self.nb_tasks, self.nb_tasks, self.dim_uss)) + 0.5
         for i in range(self.nb_tasks):

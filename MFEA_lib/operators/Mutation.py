@@ -12,7 +12,7 @@ class AbstractMutation():
         pass
     def __call__(self, ind: Individual, return_newInd:bool, *arg, **kwargs) -> Individual:
         pass
-    def getInforTasks(self, IndClass: Type[Individual], tasks: list[AbstractTask], seed = None):
+    def getInforTasks(self, IndClass: Type, tasks: list, seed = None):
         self.dim_uss = max([t.dim for t in tasks])
         self.nb_tasks = len(tasks)
         if self.pm is None:
@@ -121,14 +121,14 @@ class PMD_Scale(AbstractMutation):
         self.lenMem = lenMem
         self.default_scale = default_scale
 
-    def getInforTasks(self, tasks: list[AbstractTask], seed=None):
+    def getInforTasks(self, tasks: list, seed=None):
         super().getInforTasks(tasks, seed)
 
     def __call__(self, ind: Individual, return_newInd: bool, *arg, **kwargs) -> Individual:
         return super().__call__(ind, return_newInd, *arg, **kwargs)
 
 class IDPCEDU_Mutation(AbstractMutation):
-    def getInforTasks(self, IndClass: Type[Individual], tasks: list[AbstractTask], seed=None):
+    def getInforTasks(self, IndClass: Type, tasks: list, seed=None):
         super().getInforTasks(IndClass, tasks, seed)
         self.S_tasks = [np.amax(t.count_paths, axis= 1)  for t in tasks]
         

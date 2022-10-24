@@ -180,7 +180,7 @@ class SubPopulation:
         return self.ls_inds[int(np.where(self.factorial_rank == 1)[0])]
 
 class Population:
-    def __init__(self, IndClass: Type[Individual], dim, nb_inds_tasks: list[int], list_tasks:list[AbstractTask] = [], 
+    def __init__(self, IndClass: Type[Individual], dim, nb_inds_tasks: list, list_tasks:list = [], 
         evaluate_initial_skillFactor = False) -> None:
         '''
         A Population include:\n
