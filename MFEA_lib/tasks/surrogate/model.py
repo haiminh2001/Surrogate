@@ -64,14 +64,14 @@ class SurrogatePipeline():
 
         self.model.train()
 
-        dataloader = DataLoader(datasets, batch_size=1, shuffle=True, pin_memory= True, num_workers= 2)
+        dataloader = DataLoader(datasets, batch_size=1, shuffle=True, pin_memory= False, num_workers= 2)
 
         for epoch in range(self.epochs):
             losses = []
             
             for _, batch in tqdm(enumerate(dataloader)):
-                vpreds, cpreds = self.model(batch.cuda())
-                loss = self.reg_criteria(vpreds / batch.y, torch.Tensor([1]).type(torch.float).cuda()) + self.cls_criteria(cpreds, batch.thresh_hold)
+                vpreds, cpreds = self.model(batch.to(self.device))
+                loss = self.reg_criteria(vpreds / batch.y, torch.Tensor([1]).type(torch.float).to(self.device)) + self.cls_criteria(cpreds, batch.thresh_hold)
                 losses.append(loss.item())
                 
                 self.optimizer.zero_grad()
@@ -79,10 +79,13 @@ class SurrogatePipeline():
                 self.optimizer.step()
             print(f'Epoch {epoch} - Loss: {np.mean(losses)}')
 
+        del dataloader
+        
     def eval(self, inputs):
         pass
 
     def predict(self, input):
+        self.model.eval()
         with torch.no_grad():
             input.to(self.device)
             pred = self.model(input)

@@ -37,6 +37,13 @@ class GraphDataset(InMemoryDataset):
                 thresh_hold= thresh_hold[i],
             ))
         self.data.extend(self.latest_data)
+    
+    def flush(self):
+        del self.data
+        del self.latest_data
+        self.data =[]
+        self.latest_data = []
+        torch.cuda.empty_cache()
 
     def len(self):
         return len(self.data)

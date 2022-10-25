@@ -19,6 +19,8 @@ def get_parser():
     parser.add_argument('--device', type = str, default= 'cuda', help= 'device')
     parser.add_argument('--record', action = 'store_true', help= 'record gene and its fitness')
     parser.add_argument('--task', type = int, default= 1, help= 'choose task')
+    parser.add_argument('--train_period', type = int, default= 5, help= 'train period')
+    parser.add_argument('--start_eval', type = int, default= 5, help= 'start eval')
     parser.add_argument('--save_path', type = str, default= "")
     parser.add_argument('--merge', action = 'store_true', help= 'merge data of current task')
     return parser
@@ -52,7 +54,8 @@ def main():
     )
     solve = baseModel.fit(
         nb_generations = 1000, rmp = 1, nb_inds_each_task= 10, 
-        bound_pop= [0, 1], evaluate_initial_skillFactor= True
+        bound_pop= [0, 1], evaluate_initial_skillFactor= True,
+        train_period = args.train_period, start_eval = args.start_eval,
     )
 
 if __name__ == '__main__':

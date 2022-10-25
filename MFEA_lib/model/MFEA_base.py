@@ -166,9 +166,11 @@ class betterModel(AbstractModel.model):
                             gts.append(d.y.cpu().numpy()[0])
                         
                         print(kendalltau(reg_preds, gts), f'F1: {f1_score(cls_gts, cls_preds)}')
-                        print(confusion_matrix(cls_gts, cls_preds))
+                        # print(confusion_matrix(cls_gts, cls_preds))
                 if (epoch + 1) % train_period == 0 and self.surrogate_pipeline:
                     self.surrogate_pipeline.train(self.dataset)
+                    self.dataset.flush()
+                    
         except KeyboardInterrupt:
             self.write_data()
         except:
