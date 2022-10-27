@@ -14,14 +14,14 @@ class GraphDataset(InMemoryDataset):
         self.latest_data = []
        
     @staticmethod 
-    def create_new_graph_instance(edge_index, edge_attribute, num_nodes: int, source:int, target:int, genes: np.ndarray, y: int, thresh_hold: int = None):
+    def create_new_graph_instance(edge_index, edge_attribute, num_nodes: int, source:int, target:int, genes: np.ndarray, y: int, thresh_hold: int = None, skill_factor: int = None):
         x = [[0, genes[0, i], genes[1, i]] for i in range(num_nodes)]
         x[source][0] = -1
         x[target][0] = 1
             
         x = torch.tensor(x, dtype= torch.float)
         return Data(x= x, edge_index= edge_index, edge_attr= edge_attribute, y= torch.Tensor([y]),
-                    thresh_hold = torch.Tensor([1 if y < thresh_hold else 0]))
+                    thresh_hold = torch.Tensor([1 if y < thresh_hold else 0]), skill_factor = torch.Tensor(skill_factor))
     
     def append(self, genes, costs, skfs, thresh_hold):
         self.latest_data = []
@@ -35,6 +35,7 @@ class GraphDataset(InMemoryDataset):
                 genes = genes[i], 
                 y = costs[i],
                 thresh_hold= thresh_hold[i],
+                skill_factor = skfs[i]
             ))
         self.data.extend(self.latest_data)
 
