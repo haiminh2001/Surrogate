@@ -7,95 +7,53 @@ import numpy as np
 from tqdm import tqdm
 
   
-# type 2
-class GNN_GCN(nn.Module):
-    def __init__(self, in_channels, hid_channels, num_nodes):
-        super(GNN_GCN, self).__init__()
-        self.gc1 = gnn_nn.GCNConv(in_channels, hid_channels)
-        self.gc2 = gnn_nn.GCNConv(hid_channels, 1)
-        self.fc = nn.Linear(num_nodes, 1)
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-    def forward(self, x, edge_index, edge_weight):
-        x = F.relu(self.gc1(x, edge_index, edge_weight))
-        x = self.gc2(x, edge_index, edge_weight)
-        x = x.squeeze(1)
-        x = self.fc(x)
-        return x
-
-# type 1
-class SurrogateModel(nn.Module):
-    def __init__(self, in_channels, hid_channels):
+class GATConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
         super().__init__()
-        self.gc1 = gnn_nn.GATConv(in_channels=in_channels, out_channels=hid_channels)
-        self.gc2 = gnn_nn.GATConv(in_channels=hid_channels, out_channels=256)
-        self.lstm = nn.LSTM(256, 256)
+        self.conv1 = gnn_nn.GATConv(in_channels = in_channels, out_channels = out_channels)
+        self.conv2 = gnn_nn.GATConv(in_channels = out_channels, out_channels = out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        
+
+    def forward(self, vertices_feature, edge_index, edge_attr):
+        out = self.relu(self.conv1(vertices_feature, edge_index, edge_attr))
+        out = self.relu(self.conv2(out, edge_index, edge_attr))
+        return out
+
+class SurrogateModel(nn.Module):
+    def __init__(self, in_channels, hid_channels, reg_max = 10000):
+        super().__init__()
+        hid_channels2 = hid_channels//4
+        self.gcb1 = GATConvBlock(in_channels=in_channels, out_channels=hid_channels)
+        self.gcb2 = GATConvBlock(in_channels=hid_channels, out_channels=hid_channels*2)
+        self.gcb3 = GATConvBlock(in_channels=hid_channels*2, out_channels=hid_channels2)
+        
+        self.linear = nn.Linear(10, 1)
         self.regress = nn.Sequential(
-            nn.ReLU(),
-            nn.Linear(256,1)
+            nn.Tanh(),
+            nn.Linear(hid_channels2,1)
             )
+        self.reg_max = reg_max
+        # self.proj = nn.Parameter(torch.linspace(0, self.reg_max, self.reg_max + 1), requires_grad=False)
+        # self.proj_conv.weight = nn.Parameter(self.proj.view([1, self.reg_max + 1, 1, 1]).clone().detach(),
+        #                                            requires_grad=False)
         self.classify = nn.Sequential(
             nn.ReLU(),
-            nn.Linear(256,1),
+            nn.Linear(hid_channels2,1),
             nn.Sigmoid(),
         )
         
     def forward(self, inputs):
         vertices_feature, edge_index, edge_attr = inputs.x, inputs.edge_index, inputs.edge_attr
-        x = F.relu(self.gc1(vertices_feature, edge_index, edge_attr))
-        x = self.gc2(vertices_feature, edge_index, edge_attr)
+        x = self.gcb1(vertices_feature, edge_index, edge_attr)
+        x = self.gcb2(x, edge_index, edge_attr)
+        x = self.gcb3(x, edge_index, edge_attr)
         x = x.squeeze(1)
-        _, (_, x) = self.lstm(x)
+        x = self.linear(torch.transpose(x, 0, 1)).squeeze()
+        # _, (_, x) = self.lstm(x)
         v = self.regress(x)
         c = self.classify(x)
         return v.flatten(), c.flatten()
-    
-class SurrogatePipeline():
-    def __init__(self, input_dim, hidden_dim, learning_rate, epochs = 1, device = 'cpu'):
-        self.device = device
-        self.model = SurrogateModel(input_dim, hidden_dim).to(self.device)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
-        self.reg_criteria = nn.MSELoss()
-        self.cls_criteria = nn.BCELoss()
-        self.epochs = epochs
-
-        
-    def train(self, datasets):
-        print("Training surrogate")
-
-        self.model.train()
-
-        dataloader = DataLoader(datasets, batch_size=1, shuffle=True, pin_memory= False, num_workers= 2)
-
-        for epoch in range(self.epochs):
-            losses = []
-            
-            for _, batch in tqdm(enumerate(dataloader)):
-                vpreds, cpreds = self.model(batch.to(self.device))
-                loss = self.reg_criteria(vpreds / batch.y, torch.Tensor([1]).type(torch.float).to(self.device)) + self.cls_criteria(cpreds, batch.thresh_hold)
-                losses.append(loss.item())
-                
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
-            print(f'Epoch {epoch} - Loss: {np.mean(losses)}')
-
-        del dataloader
-        
-    def eval(self, inputs):
-        pass
-
-    def predict(self, input):
-        self.model.eval()
-        with torch.no_grad():
-            input.to(self.device)
-            pred = self.model(input)
-            return pred
-
-    def save_model(self):
-        pass
-
-    def load_model(self):
-        pass
-
-    def save_pipeline(self, path):
-        pass
