@@ -82,6 +82,7 @@ class SurrogatePipeline():
         print(f"Number of params: {self.number_of_parameters()}")
         print(f"Length of train_dataset: {len(train_dataset)} | valid_dataset: {len(valid_dataset)}")
         print(f"Using {self.device}")
+        
         self.save_opts()
         if self.load_weights_path is not None:
           self.load_model()
@@ -91,7 +92,7 @@ class SurrogatePipeline():
         valid_dataloader = DataLoader(valid_dataset, batch_size=1, shuffle=False, pin_memory= True, num_workers= 2)
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
-        
+
         y_pred_prev = None
         y_prev = None
         for self.epoch in range(self.epoch, self.num_epochs + self.epoch):
@@ -105,6 +106,7 @@ class SurrogatePipeline():
             vgts_all = []
             cpreds_all = []
             cgts_all = []
+
             skill_factor_all = []
             loss = 0 
             for i, batch in enumerate(train_dataloader):
@@ -184,7 +186,6 @@ class SurrogatePipeline():
                 self.eval()
             if (self.epoch + 1) % self.save_frequency == 0:
                 self.save_model()
-    
     def eval(self):
         self.model.eval()
         
