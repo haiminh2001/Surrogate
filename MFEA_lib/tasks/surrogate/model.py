@@ -5,62 +5,76 @@ import torch_geometric.nn as gnn_nn
 from torch_geometric.loader import DataLoader
 import numpy as np
 from tqdm import tqdm
+from scipy.stats import kendalltau
+from sklearn.metrics import f1_score, confusion_matrix, r2_score
+import os
+from .lambdarank import lambda_rank
 
-  
-# type 2
-class GNN_GCN(nn.Module):
-    def __init__(self, in_channels, hid_channels, num_nodes):
-        super(GNN_GCN, self).__init__()
-        self.gc1 = gnn_nn.GCNConv(in_channels, hid_channels)
-        self.gc2 = gnn_nn.GCNConv(hid_channels, 1)
-        self.fc = nn.Linear(num_nodes, 1)
 
-    def forward(self, x, edge_index, edge_weight):
-        x = F.relu(self.gc1(x, edge_index, edge_weight))
-        x = self.gc2(x, edge_index, edge_weight)
-        x = x.squeeze(1)
-        x = self.fc(x)
-        return x
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-# type 1
-class SurrogateModel(nn.Module):
-    def __init__(self, in_channels, hid_channels):
+class GATConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
         super().__init__()
-        self.gc1 = gnn_nn.GATConv(in_channels=in_channels, out_channels=hid_channels)
-        self.gc2 = gnn_nn.GATConv(in_channels=hid_channels, out_channels=256)
-        self.lstm = nn.LSTM(256, 256)
+        self.conv1 = gnn_nn.GATConv(in_channels = in_channels, out_channels = out_channels)
+        self.conv2 = gnn_nn.GATConv(in_channels = out_channels, out_channels = out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        
+
+    def forward(self, vertices_feature, edge_index, edge_attr):
+        out = self.relu(self.conv1(vertices_feature, edge_index, edge_attr))
+        out = self.relu(self.conv2(out, edge_index, edge_attr))
+        return out
+
+class SurrogateModel(nn.Module):
+    def __init__(self, in_channels, hid_channels, reg_max = 10000):
+        super().__init__()
+        hid_channels2 = hid_channels//4
+        self.gcb1 = GATConvBlock(in_channels=in_channels, out_channels=hid_channels)
+        self.gcb2 = GATConvBlock(in_channels=hid_channels, out_channels=hid_channels*2)
+        self.gcb3 = GATConvBlock(in_channels=hid_channels*2, out_channels=hid_channels2)
+        
+        self.linear = nn.Linear(10, 1)
         self.regress = nn.Sequential(
-            nn.ReLU(),
-            nn.Linear(256,1)
+            nn.Tanh(),
+            nn.Linear(hid_channels2,1)
             )
+        self.reg_max = reg_max
         self.classify = nn.Sequential(
             nn.ReLU(),
-            nn.Linear(256,1),
+            nn.Linear(hid_channels2,1),
             nn.Sigmoid(),
         )
         
     def forward(self, inputs):
         vertices_feature, edge_index, edge_attr = inputs.x, inputs.edge_index, inputs.edge_attr
-        x = F.relu(self.gc1(vertices_feature, edge_index, edge_attr))
-        x = self.gc2(x, edge_index, edge_attr)
+        x = self.gcb1(vertices_feature, edge_index, edge_attr)
+        x = self.gcb2(x, edge_index, edge_attr)
+        x = self.gcb3(x, edge_index, edge_attr)
         x = x.squeeze(1)
-        _, (_, x) = self.lstm(x)
+        x = self.linear(torch.transpose(x, 0, 1)).squeeze()
+        # _, (_, x) = self.lstm(x)
         v = self.regress(x)
         c = self.classify(x)
         return v.flatten(), c.flatten()
-    
+
 class SurrogatePipeline():
-    def __init__(self, input_dim, hidden_dim, learning_rate, num_epochs = 1, device = 'cuda'):
+    def __init__(self, input_dim, hidden_dim, learning_rate, num_epochs = 1, device = 'cuda', epoch_start = None, backward_freq = 16):
         self.device = device
         self.model = SurrogateModel(input_dim, hidden_dim).to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
         self.reg_criteria = nn.MSELoss()
         self.cls_criteria = nn.BCELoss()
         self.num_epochs = num_epochs
-        self.eval_frequency = 2
+        self.eval_frequency = 10
         self.save_frequency = 1
         self.log_folder = "./checkpoints/model"
         self.load_weights_path = None
+        self.epoch = 0 if epoch_start is None else epoch_start
+        self.thresh_hold_cls = 0.6
+        self.backward_freq = backward_freq
+        self.regress_loss_weight = 10
 
     def train(self, train_dataset, valid_dataset):
         print("Training surrogate")
@@ -68,6 +82,8 @@ class SurrogatePipeline():
         print(f"Number of params: {self.number_of_parameters()}")
         print(f"Length of train_dataset: {len(train_dataset)} | valid_dataset: {len(valid_dataset)}")
         print(f"Using {self.device}")
+        
+        self.save_opts()
         if self.load_weights_path is not None:
           self.load_model()
 
@@ -76,50 +92,154 @@ class SurrogatePipeline():
         valid_dataloader = DataLoader(valid_dataset, batch_size=1, shuffle=False, pin_memory= True, num_workers= 2)
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
-        self.epoch = 0
-        for self.epoch in range(self.num_epochs):
+
+        y_pred_prev = None
+        y_prev = None
+        for self.epoch in range(self.epoch, self.num_epochs + self.epoch):
             self.model.train()
 
-            losses = []
+            losses_all = []
+            losses_reg = []
+            losses_cls = []
+            losses_lambda = []
             vpreds_all = []
             vgts_all = []
             cpreds_all = []
             cgts_all = []
-            
-            for _, batch in tqdm(enumerate(train_dataloader)):
+
+            skill_factor_all = []
+            loss = 0 
+            for i, batch in enumerate(train_dataloader):
                 vpreds, cpreds = self.model(batch.to(self.device))
+                logits_preds = (cpreds >= self.thresh_hold_cls).float()
                 vpreds_all += list(vpreds.detach().cpu().numpy())
                 vgts_all += list(batch.y.detach().cpu().numpy())
-                # cpreds_all += list(cpreds.squeeze(-1).numpy())
-                # cgts_all += list(batch.y.squeeze(-1).numpy())
-                loss = self.reg_criteria(vpreds / batch.y, torch.Tensor([1]).type(torch.float).cuda()) + self.cls_criteria(cpreds, batch.thresh_hold)
-                losses.append(loss.item())
-                
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
+                cpreds_all += list(cpreds.detach().cpu().numpy())
+                cgts_all += list(batch.thresh_hold.detach().cpu().numpy())
+                skill_factor_all += list(batch.skill_factor.detach().cpu().numpy())
 
-            self.log_terminal("Train", np.mean(losses), kendalltau(vpreds_all, vgts_all))
+                #reg
+                alpha = (logits_preds + batch.thresh_hold < 2).float()
+                # loss_reg = self.reg_criteria(vpreds / batch.y, torch.tensor([1], device = self.device, dtype = torch.float)) 
+                loss_reg = self.reg_criteria(vpreds, batch.y) 
+                # print('hello', vpreds, batch.y, alpha)
+
+                #cls
+                loss_cls = self.cls_criteria(cpreds, batch.thresh_hold) * 0
+
+                #lambda rank
+                if y_prev:
+                  loss_lambda = lambda_rank(y_prev, batch.y, y_pred_prev, vpreds)
+                  losses_lambda.append(loss_lambda.item())
+
+                  # print(loss_lambda, loss)
+                  loss += loss_lambda
+
+
+                y_prev, y_pred_prev = batch.y, vpreds
+
+                loss+= self.regress_loss_weight*loss_reg + loss_cls 
+
+               
+                losses_reg.append(loss_reg.item())
+                losses_cls.append(loss_cls.item())
+                losses_all.append(loss.item())
+
+                if (i + 1) % self.backward_freq == 0:
+                  loss /= self.backward_freq
+                  self.optimizer.zero_grad()
+                  loss.backward()
+                  self.optimizer.step()
+                  loss = 0
+                
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+            metric = {}
+            vpreds_all = np.array(vpreds_all)
+            vgts_all = np.array(vgts_all)
+            cpreds_all = np.array(cpreds_all)
+            cgts_all = np.array(cgts_all)
+            skill_factor_all = np.array(skill_factor_all)
+
+            skill_factor_value = np.unique(skill_factor_all)
+            cpreds_all = (np.array(cpreds_all) >= self.thresh_hold_cls).astype(float)
+
+            for skf in skill_factor_value:
+                metric['mean'] = vpreds_all.mean()
+                metric['std'] = vpreds_all.std()
+                metric[f'kendalltau_{skf}'] = kendalltau(vpreds_all[skill_factor_all == skf], vgts_all[skill_factor_all == skf])
+                metric[f'r2_score_{skf}'] = r2_score(vpreds_all[skill_factor_all == skf], vgts_all[skill_factor_all == skf])
+                metric[f'f1_score_{skf}'] = f1_score(cpreds_all[skill_factor_all == skf], cgts_all[skill_factor_all == skf])
+            
+            losses = dict()
+            losses['loss'] = np.mean(losses_all)
+            losses['loss_cls'] = np.mean(losses_cls)
+            losses['loss_reg'] = np.mean(losses_reg)
+            losses['loss_lambda'] = np.mean(losses_lambda)
+
+            self.log_terminal("Train", losses, metric)
+            self.log_file("Train", losses, metric)
 
             if (self.epoch + 1) % self.eval_frequency == 0:
                 self.eval()
             if (self.epoch + 1) % self.save_frequency == 0:
                 self.save_model()
-
     def eval(self):
         self.model.eval()
-        losses = []
+        
+        losses_all = []
+        losses_cls = []
+        losses_reg = []
+
         vpreds_all = []
         vgts_all = []
+        cpreds_all = []
+        cgts_all = []
+        skill_factor_all = []
+
         with torch.no_grad():
-            for _, batch in tqdm(enumerate(self.valid_dataloader)):
+            for _, batch in enumerate(self.valid_dataloader):
                 vpreds, cpreds = self.model(batch.to(self.device))
+                logits_preds = (cpreds >= self.thresh_hold_cls).float()
                 vpreds_all += list(vpreds.detach().cpu().numpy())
                 vgts_all += list(batch.y.detach().cpu().numpy())
-                loss = self.reg_criteria(vpreds / batch.y, torch.Tensor([1]).type(torch.float).cuda()) + self.cls_criteria(cpreds, batch.thresh_hold)
-                losses.append(loss.item())
+                cpreds_all += list(cpreds.detach().cpu().numpy())
+                cgts_all += list(batch.thresh_hold.detach().cpu().numpy())
+                skill_factor_all += list(batch.skill_factor.detach().cpu().numpy())
 
-        self.log_terminal("Validation", np.mean(losses), kendalltau(vpreds_all, vgts_all))
+                # loss_reg = self.reg_criteria(vpreds / batch.y, torch.Tensor([1]).type(torch.float).cuda())
+                alpha = (logits_preds + batch.thresh_hold < 2).float()
+                loss_reg = (1-alpha)*self.reg_criteria(vpreds, batch.y)
+                loss_cls = self.cls_criteria(cpreds, batch.thresh_hold)
+                loss = self.regress_loss_weight*loss_reg + loss_cls
+                losses_reg.append(loss_reg.item())
+                losses_cls.append(loss_cls.item())
+                losses_all.append(loss.item())
+ 
+        metric = {}
+        vpreds_all = np.array(vpreds_all)
+        vgts_all = np.array(vgts_all)
+        cpreds_all = np.array(cpreds_all)
+        cgts_all = np.array(cgts_all)
+        skill_factor_all = np.array(skill_factor_all)
+
+        skill_factor_value = np.unique(skill_factor_all)
+        cpreds_all = (np.array(cpreds_all) >= self.thresh_hold_cls).astype(float)
+
+        for skf in skill_factor_value:
+            metric[f'kendalltau_{skf}'] = kendalltau(vpreds_all[skill_factor_all == skf], vgts_all[skill_factor_all == skf])
+            metric[f'r2_score_{skf}'] = r2_score(vpreds_all[skill_factor_all == skf], vgts_all[skill_factor_all == skf])
+            metric[f'f1_score_{skf}'] = f1_score(cpreds_all[skill_factor_all == skf], cgts_all[skill_factor_all == skf])
+        
+        losses = dict()
+        losses['loss'] = np.mean(losses_all)
+        losses['loss_cls'] = np.mean(losses_cls)
+        losses['loss_reg'] = np.mean(losses_reg)
+
+        self.log_terminal("Validation", losses, metric)
+        self.log_file("Validation", losses, metric)
 
     def predict(self, input):
         with torch.no_grad():
@@ -131,11 +251,27 @@ class SurrogatePipeline():
         return count_parameters(self.model)
 
     def log_terminal(self, mode, loss, metric):
-        print_string = "epoch {:>3} [{}] " + " | loss: {:.5f} | metric: {}"
+        print_string = "epoch {} [{}] " + " | loss: {} + | metric: {}"
         print(print_string.format(self.epoch, mode, loss, metric))
 
+    def log_file(self, mode, loss, metric):
+        os.makedirs(self.log_folder, exist_ok=True)
+        print_string = "epoch {} [{}] " + " | loss: {} | metric: {} \n"
+        with open(f"{self.log_folder}/log.txt", "a") as f:
+            f.write(print_string.format(self.epoch, mode, loss, metric))
+
     def save_opts(self):
-        pass 
+        # os.makedirs(self.log_folder, exist_ok=True)
+        # opt = self.__class__.__dict__.copy()
+        # print(opt)
+        # opt.pop("model")
+        # opt.pop("optimizer")
+        # opt.pop("reg_criteria")
+        # opt.pop("cls_criteria")
+        # with open(os.path.join(self.log_folder, 'opt.json'), 'w') as f:
+        #     json.dump(opt, f, indent=2) 
+        pass
+        
 
     def save_model(self):
         print("Save model to:", self.log_folder)

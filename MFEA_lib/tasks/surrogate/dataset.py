@@ -21,7 +21,7 @@ class GraphDataset(InMemoryDataset):
             
         x = torch.tensor(x, dtype= torch.float)
         return Data(x= x, edge_index= edge_index, edge_attr= edge_attribute, y= torch.Tensor([y]),
-                    thresh_hold = torch.Tensor([1 if y < thresh_hold else 0]), skill_factor = torch.Tensor(skill_factor))
+                    thresh_hold = torch.Tensor([1 if y < thresh_hold else 0]), skill_factor = torch.Tensor([skill_factor]))
     
     def append(self, genes, costs, skfs, thresh_hold):
         self.latest_data = []
