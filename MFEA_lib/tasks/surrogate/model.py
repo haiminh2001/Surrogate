@@ -14,23 +14,24 @@ from .lambdarank import lambda_rank
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
+
 class GATConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
-        self.conv1 = gnn_nn.GATConv(in_channels = in_channels, out_channels = out_channels)
-        self.conv2 = gnn_nn.GATConv(in_channels = out_channels, out_channels = out_channels)
-        self.relu = nn.ReLU(inplace=True)
+        self.conv1 = gnn_nn.GATv2Conv(heads  = 3,in_channels = in_channels, out_channels = out_channels, edge_dim = 91, add_self_loops = False, concat = False)
+        self.conv2 = gnn_nn.GATv2Conv(heads  = 3,in_channels = out_channels, out_channels = out_channels, edge_dim = 91, add_self_loops = False, concat = False)
+        self.relu = nn.ReLU(inplace = True)
         
 
     def forward(self, vertices_feature, edge_index, edge_attr):
-        out = self.relu(self.conv1(vertices_feature, edge_index, edge_attr))
-        out = self.relu(self.conv2(out, edge_index, edge_attr))
+        out = self.relu(self.conv1(vertices_feature, edge_index, edge_attr.type(torch.float)))
+        out = self.relu(self.conv2(out, edge_index, edge_attr.type(torch.float)))
         return out
 
 class SurrogateModel(nn.Module):
     def __init__(self, in_channels, hid_channels, reg_max = 10000):
         super().__init__()
-        hid_channels2 = hid_channels//4
+        hid_channels2 = hid_channels//1
         self.gcb1 = GATConvBlock(in_channels=in_channels, out_channels=hid_channels)
         self.gcb2 = GATConvBlock(in_channels=hid_channels, out_channels=hid_channels*2)
         self.gcb3 = GATConvBlock(in_channels=hid_channels*2, out_channels=hid_channels2)
@@ -127,7 +128,7 @@ class SurrogatePipeline():
 
                 #lambda rank
                 if y_prev:
-                  loss_lambda = lambda_rank(y_prev, batch.y, y_pred_prev, vpreds)
+                  loss_lambda = lambda_rank(y_prev, batch.y, y_pred_prev, vpreds) * 0
                   losses_lambda.append(loss_lambda.item())
 
                   # print(loss_lambda, loss)
