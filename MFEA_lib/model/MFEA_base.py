@@ -3,7 +3,6 @@ from . import AbstractModel
 from ..operators import Crossover, Mutation, Selection
 from ..tasks.task import AbstractTask
 from ..EA import *
-from ..tasks.surrogate import GraphDataset
 import random
 from scipy.stats import kendalltau
 from sklearn.metrics import f1_score, confusion_matrix
@@ -107,6 +106,8 @@ class betterModel(AbstractModel.model):
         *args, **kwargs):
         self.surrogate_pipeline = None
         if 'surrogate_pipeline' in kwargs.keys():
+            from ..tasks.surrogate import GraphDataset
+
             self.surrogate_pipeline = kwargs.get('surrogate_pipeline')
             self.dataset = GraphDataset(tasks = tasks)
         self.record = record
@@ -252,8 +253,12 @@ class betterModel(AbstractModel.model):
                 gene_cols.append(col)
                 
         if self.merge:
-            self.df = pd.concat([pd.read_csv(os.path.join(dir_path,fname)) for fname in os.listdir(dir_path)] + [self.df])
-            assert subprocess.call(f'rm {dir_path}/*', shell = True) == 0
+            flist = []
+            for f in os.listdir(dir_path):
+              if f.endswith('.csv'):
+                flist.append(f)
+            self.df = pd.concat([pd.read_csv(os.path.join(dir_path,fname)) for fname in flist] + [self.df])
+            subprocess.call(f'rm -rf {dir_path}/*', shell = True) == 0
              
         self.df = self.df.drop_duplicates(gene_cols)
         

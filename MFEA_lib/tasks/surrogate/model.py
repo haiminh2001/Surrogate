@@ -8,35 +8,58 @@ from tqdm import tqdm
 from scipy.stats import kendalltau
 from sklearn.metrics import f1_score, confusion_matrix, r2_score
 import os
-from .lambdarank import lambda_rank
+from torch_sparse import SparseTensor, fill_diag, matmul, mul
+from torch_sparse import sum as sparsesum
+from torch_geometric.utils.num_nodes import maybe_num_nodes
+from torch_geometric.utils import add_remaining_self_loops
+from torch_geometric.nn.inits import zeros
+from torch_scatter import scatter_add
+from torch_geometric.nn.dense.linear import Linear
 
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+import torch.nn as nn
+import torch 
+import torch.nn.functional as F
+import torch_geometric.nn as gnn_nn
+from torch_geometric.loader import DataLoader
+import numpy as np
+from tqdm import tqdm
+from scipy.stats import kendalltau
+from sklearn.metrics import f1_score, confusion_matrix, r2_score
+import os
+from .lambdarank import lambda_rank
+from .gnn_block import MyGATConv
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
+
 class GATConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, edge_dim):
         super().__init__()
-        self.conv1 = gnn_nn.GATv2Conv(heads  = 3,in_channels = in_channels, out_channels = out_channels, edge_dim = 91, add_self_loops = False, concat = False)
-        self.conv2 = gnn_nn.GATv2Conv(heads  = 3,in_channels = out_channels, out_channels = out_channels, edge_dim = 91, add_self_loops = False, concat = False)
+        self.conv1 = MyGATConv(in_channels = in_channels, out_channels = out_channels, edge_dim = edge_dim, add_self_loops = False, concat = False, improve = True)
+        self.conv2 = MyGATConv(in_channels = out_channels, out_channels = out_channels, edge_dim = out_channels, add_self_loops = False, concat = False, improve = True)
         self.relu = nn.ReLU(inplace = True)
         
 
     def forward(self, vertices_feature, edge_index, edge_attr):
-        out = self.relu(self.conv1(vertices_feature, edge_index, edge_attr.type(torch.float)))
-        out = self.relu(self.conv2(out, edge_index, edge_attr.type(torch.float)))
-        return out
+        out, edge_attr = self.conv1(vertices_feature, edge_index, edge_attr.type(torch.float))
+        out, edge_attr = self.conv2(out, edge_index, edge_attr.type(torch.float))
+        return out, edge_attr
 
 class SurrogateModel(nn.Module):
     def __init__(self, in_channels, hid_channels, reg_max = 10000):
         super().__init__()
         hid_channels2 = hid_channels//1
-        self.gcb1 = GATConvBlock(in_channels=in_channels, out_channels=hid_channels)
-        self.gcb2 = GATConvBlock(in_channels=hid_channels, out_channels=hid_channels*2)
-        self.gcb3 = GATConvBlock(in_channels=hid_channels*2, out_channels=hid_channels2)
+        self.gcb1 = GATConvBlock(in_channels=in_channels, out_channels=hid_channels, edge_dim = 91)
+        self.gcb2 = GATConvBlock(in_channels=hid_channels, out_channels=hid_channels*2, edge_dim = hid_channels)
+        self.gcb3 = GATConvBlock(in_channels=hid_channels*2, out_channels=hid_channels2, edge_dim = hid_channels * 2)
         
-        self.linear = nn.Linear(10, 1)
+        self.node_linear = nn.Linear(10, 1)
+        self.edge_linear = nn.Linear(1000,1)
         self.regress = nn.Sequential(
             nn.Tanh(),
             nn.Linear(hid_channels2,1)
@@ -50,12 +73,13 @@ class SurrogateModel(nn.Module):
         
     def forward(self, inputs):
         vertices_feature, edge_index, edge_attr = inputs.x, inputs.edge_index, inputs.edge_attr
-        x = self.gcb1(vertices_feature, edge_index, edge_attr)
-        x = self.gcb2(x, edge_index, edge_attr)
-        x = self.gcb3(x, edge_index, edge_attr)
-        x = x.squeeze(1)
-        x = self.linear(torch.transpose(x, 0, 1)).squeeze()
-        # _, (_, x) = self.lstm(x)
+        x, edge_attr = self.gcb1(vertices_feature, edge_index, edge_attr)
+        x, edge_attr = self.gcb2(x, edge_index, edge_attr)
+        x, edge_attr = self.gcb3(x, edge_index, edge_attr)
+        edge_attr = edge_attr.squeeze()
+        x = self.node_linear(torch.transpose(x, 0, 1)).squeeze()
+        edge_attr = self.edge_linear(torch.transpose(edge_attr, 0, 1)).squeeze()
+        x = x + edge_attr
         v = self.regress(x)
         c = self.classify(x)
         return v.flatten(), c.flatten()
