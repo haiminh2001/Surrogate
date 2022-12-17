@@ -7,7 +7,6 @@ from MFEA_lib.operators.Selection import *
 from datetime import datetime
 import argparse
 
-import time
 import ray
 
 def get_parser():
@@ -28,9 +27,7 @@ def main():
     args = get_parser().parse_args()
     kwargs = {}
     ray.init()
-    s = time.time()
     tasks, IndClass = IDPC_EDU_benchmark.get_tasks(1)
-    print(f'Read in {time.time() - s} s')
     ray.shutdown()
     
     if args.record:
@@ -55,7 +52,7 @@ def main():
           **kwargs
       )
       solve = baseModel.fit(
-          nb_generations = 10, rmp = 0.5, nb_inds_each_task= 100, 
+          nb_generations = 100, rmp = 0.5, nb_inds_each_task= 100, 
           bound_pop= [0, 1], evaluate_initial_skillFactor= True,
           train_period = args.train_period, start_eval = args.start_eval,
       )

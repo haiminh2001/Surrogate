@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch_geometric.nn as gnn_nn
 from torch_geometric.loader import DataLoader
 import numpy as np
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 from scipy.stats import kendalltau
 from sklearn.metrics import f1_score, confusion_matrix, r2_score
 import os
@@ -25,7 +25,7 @@ import torch.nn.functional as F
 import torch_geometric.nn as gnn_nn
 from torch_geometric.loader import DataLoader
 import numpy as np
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 from scipy.stats import kendalltau
 from sklearn.metrics import f1_score, confusion_matrix, r2_score
 import os
@@ -58,11 +58,13 @@ class SurrogateModel(nn.Module):
         self.gcb2 = GATConvBlock(in_channels=hid_channels, out_channels=hid_channels*2, edge_dim = hid_channels)
         self.gcb3 = GATConvBlock(in_channels=hid_channels*2, out_channels=hid_channels2, edge_dim = hid_channels * 2)
         
-        self.node_linear = nn.Linear(10, 1)
-        self.edge_linear = nn.Linear(1000,1)
+        # self.node_linear = nn.LSTM(hid_channels2, hid_channels2, batch_first = True)
+        # self.edge_linear = nn.LSTM(hid_channels2, hid_channels2, batch_first = True)
         self.regress = nn.Sequential(
-            nn.Tanh(),
-            nn.Linear(hid_channels2,1)
+            nn.ReLU(),
+            nn.Linear(hid_channels2,hid_channels2 // 2, bias = False),
+            nn.ReLU(),
+            nn.Linear(hid_channels2 // 2,1, bias = False)
             )
         self.reg_max = reg_max
         self.classify = nn.Sequential(
@@ -76,10 +78,17 @@ class SurrogateModel(nn.Module):
         x, edge_attr = self.gcb1(vertices_feature, edge_index, edge_attr)
         x, edge_attr = self.gcb2(x, edge_index, edge_attr)
         x, edge_attr = self.gcb3(x, edge_index, edge_attr)
+        
+        # _, (_, x) = self.node_linear(x.squeeze())
+        x = x.squeeze()
+        x = torch.mean(x, dim = 0)
+        
+        # _, (_, edge_attr) = self.edge_linear(torch.transpose(edge_attr, 0, 1))
         edge_attr = edge_attr.squeeze()
-        x = self.node_linear(torch.transpose(x, 0, 1)).squeeze()
-        edge_attr = self.edge_linear(torch.transpose(edge_attr, 0, 1)).squeeze()
+        edge_attr = torch.mean(edge_attr, dim = 0)
+
         x = x + edge_attr
+
         v = self.regress(x)
         c = self.classify(x)
         return v.flatten(), c.flatten()
@@ -120,7 +129,7 @@ class SurrogatePipeline():
 
         y_pred_prev = None
         y_prev = None
-        for self.epoch in range(self.epoch, self.num_epochs + self.epoch):
+        for self.epoch in tqdm(range(self.epoch, self.num_epochs + self.epoch)):
             self.model.train()
 
             losses_all = []
@@ -133,8 +142,11 @@ class SurrogatePipeline():
             cgts_all = []
 
             skill_factor_all = []
+
             loss = 0 
-            for i, batch in enumerate(train_dataloader):
+            
+            for i, batch in tqdm(enumerate(train_dataloader), total = len(train_dataloader)):
+                backwarded = False
                 vpreds, cpreds = self.model(batch.to(self.device))
                 logits_preds = (cpreds >= self.thresh_hold_cls).float()
                 vpreds_all += list(vpreds.detach().cpu().numpy())
@@ -147,6 +159,7 @@ class SurrogatePipeline():
                 alpha = (logits_preds + batch.thresh_hold < 2).float()
                 # loss_reg = self.reg_criteria(vpreds / batch.y, torch.tensor([1], device = self.device, dtype = torch.float)) 
                 loss_reg = self.reg_criteria(vpreds, batch.y) 
+                # print(vpreds, batch.y)
                 # print('hello', vpreds, batch.y, alpha)
 
                 #cls
@@ -161,14 +174,14 @@ class SurrogatePipeline():
                   loss += loss_lambda
 
 
-                y_prev, y_pred_prev = batch.y, vpreds
+                y_prev, y_pred_prev = batch.y.detach(), vpreds.detach()
 
-                loss+= self.regress_loss_weight*loss_reg + loss_cls 
+                cur_loss = self.regress_loss_weight*loss_reg + loss_cls 
+                loss+= cur_loss
 
-               
                 losses_reg.append(loss_reg.item())
                 losses_cls.append(loss_cls.item())
-                losses_all.append(loss.item())
+                losses_all.append(cur_loss.item())
 
                 if (i + 1) % self.backward_freq == 0:
                   loss /= self.backward_freq
@@ -176,10 +189,51 @@ class SurrogatePipeline():
                   loss.backward()
                   self.optimizer.step()
                   loss = 0
-                
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+                  backwarded = True
+
+                  metric = {}
+                  vpreds_all = np.array(vpreds_all)
+                  vgts_all = np.array(vgts_all)
+                  cpreds_all = np.array(cpreds_all)
+                  cgts_all = np.array(cgts_all)
+                  skill_factor_all = np.array(skill_factor_all)
+
+                  skill_factor_value = np.unique(skill_factor_all)
+                  cpreds_all = (np.array(cpreds_all) >= self.thresh_hold_cls).astype(float)
+
+                  for skf in skill_factor_value:
+                      metric['mean'] = vpreds_all.mean()
+                      metric['std'] = vpreds_all.std()
+                      metric[f'kendalltau_{skf}'] = kendalltau(np.argsort(vpreds_all[skill_factor_all == skf]), np.argsort(vgts_all[skill_factor_all == skf]))
+                      metric[f'r2_score_{skf}'] = r2_score(vpreds_all[skill_factor_all == skf], vgts_all[skill_factor_all == skf])
+                      metric[f'f1_score_{skf}'] = f1_score(cpreds_all[skill_factor_all == skf], cgts_all[skill_factor_all == skf])
+                  
+                  losses = dict()
+                  losses['loss'] = np.mean(losses_all)
+                  losses['loss_cls'] = np.mean(losses_cls)
+                  losses['loss_reg'] = np.mean(losses_reg)
+                  losses['loss_lambda'] = np.mean(losses_lambda)
+
+                  # self.log_terminal("Train", losses, metric)
+                  # self.log_file("Train", losses, metric)
+
+
+                  losses_all = []
+                  losses_reg = []
+                  losses_cls = []
+                  losses_lambda = []
+                  vpreds_all = []
+                  vgts_all = []
+                  cpreds_all = []
+                  cgts_all = []
+
+                  skill_factor_all = []
+
+            
+            if not backwarded:
+              self.optimizer.zero_grad()
+              loss.backward()
+              self.optimizer.step()
 
             metric = {}
             vpreds_all = np.array(vpreds_all)
@@ -194,7 +248,7 @@ class SurrogatePipeline():
             for skf in skill_factor_value:
                 metric['mean'] = vpreds_all.mean()
                 metric['std'] = vpreds_all.std()
-                metric[f'kendalltau_{skf}'] = kendalltau(vpreds_all[skill_factor_all == skf], vgts_all[skill_factor_all == skf])
+                metric[f'kendalltau_{skf}'] = kendalltau(np.argsort(vpreds_all[skill_factor_all == skf]), np.argsort(vgts_all[skill_factor_all == skf]))
                 metric[f'r2_score_{skf}'] = r2_score(vpreds_all[skill_factor_all == skf], vgts_all[skill_factor_all == skf])
                 metric[f'f1_score_{skf}'] = f1_score(cpreds_all[skill_factor_all == skf], cgts_all[skill_factor_all == skf])
             
@@ -204,26 +258,31 @@ class SurrogatePipeline():
             losses['loss_reg'] = np.mean(losses_reg)
             losses['loss_lambda'] = np.mean(losses_lambda)
 
-            self.log_terminal("Train", losses, metric)
-            self.log_file("Train", losses, metric)
+            # self.log_terminal("Train", losses, metric)
+            # self.log_file("Train", losses, metric)
 
             if (self.epoch + 1) % self.eval_frequency == 0:
                 self.eval()
             if (self.epoch + 1) % self.save_frequency == 0:
                 self.save_model()
+
     def eval(self):
         self.model.eval()
         
         losses_all = []
-        losses_cls = []
         losses_reg = []
-
+        losses_cls = []
+        losses_lambda = []
         vpreds_all = []
         vgts_all = []
         cpreds_all = []
         cgts_all = []
-        skill_factor_all = []
 
+        skill_factor_all = []
+        
+        loss = 0 
+        y_pred_prev = None
+        y_prev = None
         with torch.no_grad():
             for _, batch in enumerate(self.valid_dataloader):
                 vpreds, cpreds = self.model(batch.to(self.device))

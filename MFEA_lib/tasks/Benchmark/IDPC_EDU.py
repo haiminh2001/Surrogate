@@ -3,6 +3,7 @@ import numpy as np
 from MFEA_lib.tasks.task import create_idpc
 from ...EA import Individual
 import ray
+import time
 path = os.path.dirname(os.path.realpath(__file__))
 class Ind_EDU(Individual):
     def __init__(self, genes, dim=None):
@@ -16,6 +17,8 @@ class IDPC_EDU_benchmark:
         print('\rReading data...')
 
         file_list = sorted(os.listdir(path + '/__references__/IDPC_DU/IDPC_EDU/data/set' + str(ID_set)))
+        t = time.time()
         tasks = ray.get([create_idpc.remote(path + '/__references__/IDPC_DU/IDPC_EDU/data/set' + str(ID_set), f) for f in file_list] )
+        print(f'Read in {time.time() - t} s')
         return sorted(tasks, key = lambda t: t.file), Ind_EDU
 

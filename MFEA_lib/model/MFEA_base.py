@@ -205,13 +205,13 @@ class betterModel(AbstractModel.model):
                 # intra / inter crossover
                 skf_oa, skf_ob = np.random.choice([pa.skill_factor, pb.skill_factor], size= 2, replace= True)
                 oa, ob = self.crossover(pa, pb, skf_oa, skf_ob)
-            else:
+            # else:
                 # mutate
-                oa = self.mutation(pa, return_newInd= True)
-                oa.skill_factor = pa.skill_factor
+            oa = self.mutation(pa, return_newInd= True)
+            oa.skill_factor = pa.skill_factor
 
-                ob = self.mutation(pb, return_newInd= True)    
-                ob.skill_factor = pb.skill_factor
+            ob = self.mutation(pb, return_newInd= True)    
+            ob.skill_factor = pb.skill_factor
             
             offsprings.__addIndividual__(oa)
             offsprings.__addIndividual__(ob)
@@ -260,7 +260,7 @@ class betterModel(AbstractModel.model):
             self.df = pd.concat([pd.read_csv(os.path.join(dir_path,fname)) for fname in flist] + [self.df])
             subprocess.call(f'rm -rf {dir_path}/*', shell = True) == 0
              
-        self.df = self.df.drop_duplicates(gene_cols)
+        self.df = self.df.groupby(gene_cols).first().reset_index()
         
         self.df.to_csv(self.save_path, index = False)
         self.writen = True

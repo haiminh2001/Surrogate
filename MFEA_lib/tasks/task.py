@@ -44,6 +44,10 @@ def create_idpc(dir, file):
         lines = lines[2:]
         for line in lines:
             data = [int(x) for x in line.split()]
+            for i in range(count_paths[data[0] - 1][data[1] - 1]):
+                if edges[f'{data[0] - 1}_{data[1] - 1}_{i}'] [1] == data[3]:
+                  edges[f'{data[0] - 1}_{data[1] - 1}_{i}']  = tuple([min(data[2], edges[f'{data[0] - 1}_{data[1] - 1}_{i}'] [0]), data[3]])
+                  continue
             edges[f'{data[0] - 1}_{data[1] - 1}_{count_paths[data[0] - 1][data[1] - 1]}'] = tuple([data[2], data[3]])
             count_paths[data[0] - 1][data[1] - 1] += 1
     return IDPC_EDU_FUNC(dir, file, source, target, num_domains, num_nodes, count_paths, edges)
@@ -91,6 +95,7 @@ class IDPC_EDU_FUNC(AbstractTask):
 
 
     def read_data(self):
+      
         with open(self.file, "r") as f:
             lines = f.readlines()
             #get num_nodes and num_domains from the first line
@@ -113,6 +118,7 @@ class IDPC_EDU_FUNC(AbstractTask):
             lines = lines[2:]
             for line in lines:
                 data = [int(x) for x in line.split()]
+                
                 self.edges[f'{data[0] - 1}_{data[1] - 1}_{count_paths[data[0] - 1][data[1] - 1]}'] = tuple([data[2], data[3]])
                 count_paths[data[0] - 1][data[1] - 1] += 1
             self.count_paths = count_paths
