@@ -1,7 +1,7 @@
 import random
 from typing import Type
 import numpy as np
-from .tasks.task import AbstractTask
+from .tasks.tasks.task import AbstractTask
 
 class Individual:
     '''

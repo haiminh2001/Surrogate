@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.stats
 
-from ..tasks.task import AbstractTask
+from ..tasks.tasks.task import AbstractTask
 from ..EA import Individual, Population
 
 class AbstractSearch():

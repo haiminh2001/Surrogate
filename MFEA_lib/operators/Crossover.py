@@ -1,6 +1,6 @@
 from typing import Tuple, Type
 import numpy as np
-from ..tasks.task import AbstractTask
+from ..tasks.tasks.task import AbstractTask
 from ..EA import Individual, Population
 from .Search import *
 import numba as nb

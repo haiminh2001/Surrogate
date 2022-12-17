@@ -4,7 +4,7 @@ import scipy.stats
 
 from . import AbstractModel
 from ..operators import Crossover, Mutation, Selection, Search
-from ..tasks.task import AbstractTask
+from ..tasks.tasks.task import AbstractTask
 from ..EA import *
 import sys
 import matplotlib.pyplot as plt

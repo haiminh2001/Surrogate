@@ -1,28 +1,5 @@
-import numpy as np
-import numba as nb
-import sys
-MAX_INT = sys.maxsize
 import ray
-class AbstractTask():
-    def __init__(self, *args, **kwargs) -> None:
-        pass
-    def __eq__(self, __o: object) -> bool:
-        if self.__repr__() == __o.__repr__():
-            return True
-        else:
-            return False
-    def decode(self, x):
-        pass
-    def __call__(self, x):
-        pass
-
-    @staticmethod
-    @nb.jit(nopython = True)
-    def func(x):
-        pass
-
-    
-
+from task import AbstractTask
 @ray.remote
 def create_idpc(dir, file):
     with open(str(dir) + '/'  + file, "r") as f:
@@ -46,11 +23,11 @@ def create_idpc(dir, file):
             data = [int(x) for x in line.split()]
             edges[f'{data[0] - 1}_{data[1] - 1}_{count_paths[data[0] - 1][data[1] - 1]}'] = tuple([data[2], data[3]])
             count_paths[data[0] - 1][data[1] - 1] += 1
-    return IDPC_EDU_FUNC(dir, file, source, target, num_domains, num_nodes, count_paths, edges)
+    return IDPC_EDU_task(dir, file, source, target, num_domains, num_nodes, count_paths, edges)
 
 #----------------------------------------------------------------------------------------------------------------------------
 #a solution is an permutation start from 0 to n - 1, k is also counted from 0 but domain is counted from 1
-class IDPC_EDU_FUNC(AbstractTask):        
+class IDPC_EDU_task(AbstractTask):        
     def __init__(self, dataset_path, file_name, source, target, num_domains, num_nodes, count_paths, edges):
         self.file = str(dataset_path) + '/'  + file_name
         self.datas = {}

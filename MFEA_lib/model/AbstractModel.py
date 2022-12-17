@@ -1,7 +1,7 @@
 from typing import Tuple
 import numpy as np
 from ..operators import Crossover, Mutation, Selection
-from ..tasks.task import AbstractTask
+from ..tasks.tasks.task import AbstractTask
 from ..EA import *
 import sys
 import matplotlib.pyplot as plt

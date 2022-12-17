@@ -3,7 +3,7 @@ import numpy as np
 
 from ..EA import *
 from ..operators import Crossover, Mutation, Search, Selection
-from ..tasks.task import AbstractTask
+from ..tasks.tasks.task import AbstractTask
 from . import AbstractModel
 
 

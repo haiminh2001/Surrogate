@@ -3,7 +3,7 @@ from typing import Deque, Tuple, Type
 from matplotlib import pyplot as plt
 import numpy as np
 
-from ..tasks.task import AbstractTask
+from ..tasks.tasks.task import AbstractTask
 from ..EA import Individual, Population, SubPopulation
 
 class AbstractMutation():

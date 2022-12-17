@@ -1,10 +1,10 @@
 import numpy as np
 from typing import Tuple, Type
 from ...EA import Individual
-from ..function import AbstractFunc, Sphere, Weierstrass, Ackley, Rosenbrock, Schwefel, Griewank, Rastrigin
+from ..tasks.function import AbstractFunc, Sphere, Weierstrass, Ackley, Rosenbrock, Schwefel, Griewank, Rastrigin
 from scipy.io import loadmat
 import os
-from ..cec14_func import *
+from ..tasks.cec14_func import *
 path = os.path.dirname(os.path.realpath(__file__))
 
 class Individual_func(Individual):

@@ -1,8 +1,13 @@
 import os
 import numpy as np
-from MFEA_lib.tasks.task import create_idpc
+from MFEA_lib.tasks.tasks.task import create_idpc
 from ...EA import Individual
 import ray
+import numpy as np
+import numba as nb
+import sys
+MAX_INT = sys.maxsize
+
 path = os.path.dirname(os.path.realpath(__file__))
 class Ind_EDU(Individual):
     def __init__(self, genes, dim=None):

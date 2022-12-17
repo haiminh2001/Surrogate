@@ -2,7 +2,7 @@ import numpy as np
 
 from . import AbstractModel
 from ..operators import Crossover, Mutation, Selection
-from ..tasks.task import AbstractTask
+from ..tasks.tasks.task import AbstractTask
 from ..EA import *
 import matplotlib.pyplot as plt
 
