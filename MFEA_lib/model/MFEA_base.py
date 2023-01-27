@@ -3,7 +3,6 @@ from . import AbstractModel
 from ..operators import Crossover, Mutation, Selection
 from ..tasks.tasks.task import AbstractTask
 from ..EA import *
-from ..tasks.surrogate import GraphDataset
 import random
 from scipy.stats import kendalltau
 from sklearn.metrics import f1_score, confusion_matrix
