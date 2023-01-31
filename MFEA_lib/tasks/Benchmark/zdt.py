@@ -1,6 +1,6 @@
 import numpy as np
 from ...EA import Individual
-from ..tasks import ZDT_Task
+from ..tasks import create_ZDT
 
 class IND_ZDT(Individual):
     def __init__(self, genes, dim=None, type: int = None):
@@ -11,9 +11,9 @@ class IND_ZDT(Individual):
         self.type = type
     
 class ZDT_benchmark:
-    def get_tasks(zdt_index = 0):
+    def get_tasks(zdt_index = 1):
         
-        return ZDT_Task(zdt_index), IND_ZDT
+        return create_ZDT(zdt_index), IND_ZDT
     
     
     

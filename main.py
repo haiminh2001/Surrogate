@@ -23,11 +23,11 @@ def main():
     
     args = get_parser().parse_args()
     kwargs = {}
-    tasks, IndClass = ZDT_benchmark.get_tasks()
+    tasks, IndClass = ZDT_benchmark.get_tasks(1)
     t = tasks[0]
-    a = np.array([1] * 30)
-    print(t.problem.__dict__)
-    print(t.problem.evaluate(a))
+    a = np.array([1] * 30).astype(np.int64)
+    print(type(t))
+    print(t(a))
     # if args.record:
     #     kwargs['save_path'] = args.save_path if args.save_path else f"data/task{args.task}/{datetime.today().strftime('%Y_%m_%d_%H_%M_%S')}.csv"
     
