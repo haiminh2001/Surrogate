@@ -2,7 +2,9 @@ import random
 from typing import Type
 import numpy as np
 from .tasks.tasks.task import AbstractTask
-
+from .operators.NDF import *
+from .operators.evaluate import IGD
+import functools
 class Individual:
     '''
     a Individual include:\n
@@ -181,7 +183,7 @@ class SubPopulation:
 
 class Population:
     def __init__(self, IndClass: Type[Individual], dim, nb_inds_tasks: list, list_tasks:list = [], 
-        evaluate_initial_skillFactor = False) -> None:
+        evaluate_initial_skillFactor = False, is_moo = False):
         '''
         A Population include:\n
         + `nb_inds_tasks`: number individual of tasks; nb_inds_tasks[i] = num individual of task i
@@ -198,11 +200,13 @@ class Population:
         self.nb_tasks = len(list_tasks)
         self.dim_uss = dim
         self.IndClass = IndClass
+        subpop_cls = SubPopulation if not is_moo else MOO_SubPopulation
+
 
         if evaluate_initial_skillFactor:
             # empty population
-            self.ls_subPop: list[SubPopulation] = [
-                SubPopulation(IndClass, skf, self.dim_uss, 0, list_tasks[skf]) for skf in range(len(nb_inds_tasks))
+            self.ls_subPop: list = [
+                subpop_cls(IndClass, skf, self.dim_uss, 0, list_tasks[skf]) for skf in range(len(nb_inds_tasks))
             ]
 
             # list individual (don't have skill factor)
@@ -219,6 +223,8 @@ class Population:
             while not np.all(count_inds == nb_inds_tasks) :
                 # random task do not have enough individual
                 idx_task = np.random.choice(np.where(count_inds < nb_inds_tasks)[0])
+                
+                
                 # get best individual of task
                 idx_ind = np.argsort(matrix_rank_pop[:, idx_task])[0]
 
@@ -234,8 +240,8 @@ class Population:
             for i in range(len(list_tasks)):
                 self.ls_subPop[i].update_rank()
         else:
-            self.ls_subPop: list[SubPopulation] = [
-                SubPopulation(IndClass, skf, self.dim_uss, nb_inds_tasks[skf], list_tasks[skf]) for skf in range(self.nb_tasks)
+            self.ls_subPop: list = [
+                subpop_cls(IndClass, skf, self.dim_uss, nb_inds_tasks[skf], list_tasks[skf]) for skf in range(self.nb_tasks)
             ]
 
     def __len__(self):
@@ -327,5 +333,33 @@ class Population:
             for idx in range(self.nb_tasks)
         ]
         return newPop
-    
-    
+
+def compare(a,b):
+    if a.nf != b.nf:
+        return int(a.nf > b.nf)-1
+    return int(a.cd < b.cd)-1 
+
+class MOO_SubPopulation(SubPopulation):
+    def __init__(self, IndClass: Type[Individual], skill_factor, dim, num_inds, task: AbstractTask = None):
+        super().__init__(IndClass, skill_factor, dim, num_inds, task)
+        
+    def update_rank(self):
+        fitness = np.array([ind.fcost for ind in self.ls_inds])
+        fronts = fast_non_dominated_sort(fitness)
+        fun = FunctionalDiversity(calc_crowding_distance, filter_out_duplicates=False)
+        for k, front in enumerate(fronts):
+            crowding_of_front = fun.do(fitness[front, :],n_remove=0)
+            for i,idx in enumerate(front):
+                self.ls_inds[idx].nf = k
+                self.ls_inds[idx].cd = crowding_of_front[i] 
+        self.igd = IGD(self.task.pareto_front, zero_to_one=True).do(fitness)   
+        self.ls_inds.sort(key=functools.cmp_to_key(compare))
+        self.factorial_rank = np.arange(len(self.ls_inds))+1
+        self.scalar_fitness = 1 / self.factorial_rank
+        
+    def getSolveInd(self):
+        solve = []
+        for ind in self.ls_inds:
+            if ind.nf == 0:
+                solve.append(ind)
+        return solve

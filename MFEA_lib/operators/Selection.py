@@ -100,3 +100,4 @@ class SelectionAHalf(AbstractSelection):
              
             
         return ls_idx_selected 
+    

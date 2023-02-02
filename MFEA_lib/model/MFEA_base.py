@@ -55,6 +55,7 @@ class model(AbstractModel.model):
                 nb_inds_tasks = [0] * len(self.tasks), 
                 dim = self.dim_uss,
                 list_tasks= self.tasks,
+                **kwargs,
             )
 
             # create offspring pop
@@ -107,13 +108,12 @@ class betterModel(AbstractModel.model):
         self.surrogate_pipeline = None
         if 'surrogate_pipeline' in kwargs.keys():
             self.surrogate_pipeline = kwargs.get('surrogate_pipeline')
-            self.dataset = GraphDataset(tasks = tasks)
         self.record = record
         self.merge = merge
         self.save_path  = save_path
         return super().compile(IndClass, tasks, crossover, mutation, selection, *args, **kwargs)
     
-    def fit(self, nb_generations, rmp = 0.3, nb_inds_each_task = 100, evaluate_initial_skillFactor = True, train_period = 5, start_eval = 6, *args, **kwargs) -> list:
+    def fit(self, nb_generations, rmp = 0.3, nb_inds_each_task = 100, evaluate_initial_skillFactor = True, train_period = 5, start_eval = 6, is_moo = False, *args, **kwargs) -> list:
         super().fit(*args, **kwargs)
 
         # initialize population
@@ -122,7 +122,8 @@ class betterModel(AbstractModel.model):
             nb_inds_tasks = [nb_inds_each_task] * len(self.tasks), 
             dim = self.dim_uss,
             list_tasks= self.tasks,
-            evaluate_initial_skillFactor = evaluate_initial_skillFactor
+            evaluate_initial_skillFactor = evaluate_initial_skillFactor,
+            is_moo = is_moo
         )
       
         # save history

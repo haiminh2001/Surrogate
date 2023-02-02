@@ -23,20 +23,12 @@ def main():
     
     args = get_parser().parse_args()
     kwargs = {}
-    tasks, IndClass = ZDT_benchmark.get_tasks(1)
+    tasks, IndClass = ZDT_benchmark.get_tasks()
     t = tasks[0]
     a = np.array([1] * 30).astype(np.int64)
     print(type(t))
     print(t(a))
-    # if args.record:
-    #     kwargs['save_path'] = args.save_path if args.save_path else f"data/task{args.task}/{datetime.today().strftime('%Y_%m_%d_%H_%M_%S')}.csv"
-    
-    # if args.use_surrogate:
-    #     from MFEA_lib.tasks.surrogate import SurrogatePipeline
-    #     from MFEA_lib.tasks import surrogate
-
-    #     kwargs['surrogate_pipeline'] = SurrogatePipeline(3, 3, learning_rate=4e-4, device= args.device)
-    
+        
     for loop in range(args.num_loops):
       baseModel = MFEA_base.betterModel()
       baseModel.compile(
@@ -51,7 +43,7 @@ def main():
       )
       solve = baseModel.fit(
           nb_generations = 100, rmp = 0.5, nb_inds_each_task= 100, 
-          bound_pop= [0, 1], evaluate_initial_skillFactor= True,
+          bound_pop= [0, 1], evaluate_initial_skillFactor= False, is_moo = True,
           train_period = args.train_period, start_eval = args.start_eval,
       )
 
