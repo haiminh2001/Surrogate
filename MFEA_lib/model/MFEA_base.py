@@ -137,17 +137,13 @@ class betterModel(AbstractModel.model):
         
         self.update_history = update_moo if is_moo else update_non_moo
         self.update_history()
-        
-        for pop in population:
-            print(pop.igd)
-        
-        
+
+                
         self.render_process(0, ['Cost'], [self.history_cost[-1]], use_sys= True)
                     
         try:
             for epoch in range(nb_generations):
                 genes, costs, skf, bests, population= self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population)
-                print(epoch, 'hehe')
 
                 if self.record:
                     if not hasattr(self, 'df'):

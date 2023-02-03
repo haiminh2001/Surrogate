@@ -110,10 +110,10 @@ def create_ZDT():
     
 
 class ZDT_Task(AbstractTask):
-    def __init__(self, dim:int, up:int, low:int, optimal, pareto_front, func):
+    def __init__(self, dim:int, up, low, optimal, pareto_front, func):
         self.dim = dim 
-        self.up = up 
-        self.low = low
+        self.up = up if type(up) == np.ndarray else np.full(dim, up)
+        self.low = low if type(low) == np.ndarray else np.full(dim, low)
         self.func = func
         self.optimal = optimal 
         self.pareto_front = pareto_front

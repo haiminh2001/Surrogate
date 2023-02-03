@@ -147,7 +147,7 @@ class SubPopulation:
         assert self.skill_factor == other.skill_factor
         assert self.task == other.task, 'Cannot add 2 sub-population do not have the same task'
         assert self.dim == other.dim, 'Cannot add 2 sub-population do not have the same dimensions'
-        UnionSubPop = SubPopulation(
+        UnionSubPop = self.__class__(
             IndClass= self.IndClass,
             skill_factor = self.skill_factor,
             dim= self.dim,
@@ -354,7 +354,7 @@ class MOO_SubPopulation(SubPopulation):
             for i,idx in enumerate(front):
                 self.ls_inds[idx].nf = k
                 self.ls_inds[idx].cd = crowding_of_front[i] 
-        self.igd = IGD(self.task.pareto_front, zero_to_one=True).do(fitness)  
+        self.igd = IGD(self.task.pareto_front, zero_to_one=False).do(fitness)  
         self.ls_inds.sort(key=functools.cmp_to_key(compare))
         self.factorial_rank = np.arange(len(self.ls_inds))+1
         self.scalar_fitness = 1 / self.factorial_rank

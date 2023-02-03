@@ -1,7 +1,7 @@
 import numpy as np
 from.normalization import PreNormalization
 def euclidean_distance(a, b, norm=None):
-    return np.sqrt((((a - b) / norm) ** 2).sum(axis=1))
+    return np.sqrt((((a - b.reshape(-1,1) if len(b.shape) == 1 else b) / norm) ** 2).sum(axis=1))
 def at_least_2d_array(x, extend_as="row", return_if_reshaped=False):
     if x is None:
         return x
