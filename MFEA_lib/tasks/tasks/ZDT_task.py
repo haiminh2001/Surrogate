@@ -1,14 +1,26 @@
 from .task import AbstractTask
 import numpy as np
 import numba as nb
-from pymoo.problems import get_problem
 
-ZDT1_PARAMS = {'dim': 30, 'up': 1, 'low': 0} 
-ZDT2_PARAMS = {'dim': 30, 'up': 1, 'low': 0} 
-ZDT3_PARAMS = {'dim': 30, 'up': 1, 'low': 0} 
-ZDT4_PARAMS = {'dim': 10, 'up': np.concatenate((np.array([1]), 5 * np.ones(9))), 'low':  np.concatenate((np.array([0]), -5 * np.ones(9)))}
-ZDT5_PARAMS = {'dim': 80, 'up': 1, 'low':  0}
-ZDT6_PARAMS = {'dim': 10, 'up': 1, 'low':  0}
+N_PARETO_POINTS = 100
+
+ZDT1_PARAMS = {'dim': 30, 'up': 1, 'low': 0, 'optimal': np.zeros(30)
+               ,'pareto_front': np.array([np.linspace(0, 1, N_PARETO_POINTS), 1 - np.sqrt(np.linspace(0, 1, N_PARETO_POINTS))]).T
+    } 
+ZDT2_PARAMS = {'dim': 30, 'up': 1, 'low': 0, 'optimal': np.zeros(30),
+               'pareto_front': np.array([np.linspace(0, 1, N_PARETO_POINTS), 1 - np.power(np.linspace(0, 1, N_PARETO_POINTS), 2)]).T} 
+
+#NOTE: pareto front zdt3, 5 sai
+ZDT3_PARAMS = {'dim': 30, 'up': 1, 'low': 0, 'optimal': np.zeros(30),
+               'pareto_front': np.array([np.linspace(0, 1, N_PARETO_POINTS), 1 - np.sqrt(np.linspace(0, 1, N_PARETO_POINTS))]).T} 
+
+ZDT4_PARAMS = {'dim': 10, 'up': np.concatenate((np.array([1]), 5 * np.ones(9))), 'low':  np.concatenate((np.array([0]), -5 * np.ones(9))),
+               'optimal': np.zeros(30),'pareto_front': np.array([np.linspace(0, 1, N_PARETO_POINTS), 1 - np.sqrt(np.linspace(0, 1, N_PARETO_POINTS))]).T
+               }
+ZDT5_PARAMS = {'dim': 80, 'up': 1, 'low':  0, 'optimal': np.zeros(30)
+               ,'pareto_front': np.array([np.linspace(0, 1, N_PARETO_POINTS), 1 - np.sqrt(np.linspace(0, 1, N_PARETO_POINTS))]).T}
+ZDT6_PARAMS = {'dim': 10, 'up': 1, 'low':  0, 'optimal': np.zeros(30)
+               ,'pareto_front': np.array([np.linspace(0, 1, N_PARETO_POINTS), 1 - np.power(np.linspace(0, 1, N_PARETO_POINTS), 2)]).T}
 
     
 def create_ZDT():
@@ -98,11 +110,14 @@ def create_ZDT():
     
 
 class ZDT_Task(AbstractTask):
-    def __init__(self, dim:int, up:int, low:int, func):
+    def __init__(self, dim:int, up:int, low:int, optimal, pareto_front, func):
         self.dim = dim 
         self.up = up 
         self.low = low
         self.func = func
+        self.optimal = optimal 
+        self.pareto_front = pareto_front
+        
         
     
     def __call__(self, X: np.ndarray):

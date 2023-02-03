@@ -200,6 +200,7 @@ class Population:
         self.nb_tasks = len(list_tasks)
         self.dim_uss = dim
         self.IndClass = IndClass
+        self.is_moo = is_moo
         subpop_cls = SubPopulation if not is_moo else MOO_SubPopulation
 
 
@@ -326,7 +327,8 @@ class Population:
             IndClass= self.IndClass,
             dim = self.dim_uss,
             nb_inds_tasks= [0] * self.nb_tasks,
-            list_tasks= self.ls_tasks
+            list_tasks= self.ls_tasks,
+            is_moo = self.is_moo, 
         )
         newPop.ls_subPop = [
             self.ls_subPop[idx] + other.ls_subPop[idx]
@@ -352,7 +354,7 @@ class MOO_SubPopulation(SubPopulation):
             for i,idx in enumerate(front):
                 self.ls_inds[idx].nf = k
                 self.ls_inds[idx].cd = crowding_of_front[i] 
-        self.igd = IGD(self.task.pareto_front, zero_to_one=True).do(fitness)   
+        self.igd = IGD(self.task.pareto_front, zero_to_one=True).do(fitness)  
         self.ls_inds.sort(key=functools.cmp_to_key(compare))
         self.factorial_rank = np.arange(len(self.ls_inds))+1
         self.scalar_fitness = 1 / self.factorial_rank

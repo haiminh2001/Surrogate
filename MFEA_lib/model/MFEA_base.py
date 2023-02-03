@@ -43,6 +43,7 @@ class model(AbstractModel.model):
         )
 
         # save history
+        
         self.history_cost.append([ind.fcost for ind in population.get_solves()])
         
         self.render_process(0, ['Cost'], [self.history_cost[-1]], use_sys= True)
@@ -57,7 +58,7 @@ class model(AbstractModel.model):
                 list_tasks= self.tasks,
                 **kwargs,
             )
-
+            
             # create offspring pop
             while len(offsprings) < len(population):
                 # choose parent 
@@ -111,6 +112,7 @@ class betterModel(AbstractModel.model):
         self.record = record
         self.merge = merge
         self.save_path  = save_path
+        self.update_history = None
         return super().compile(IndClass, tasks, crossover, mutation, selection, *args, **kwargs)
     
     def fit(self, nb_generations, rmp = 0.3, nb_inds_each_task = 100, evaluate_initial_skillFactor = True, train_period = 5, start_eval = 6, is_moo = False, *args, **kwargs) -> list:
@@ -127,14 +129,26 @@ class betterModel(AbstractModel.model):
         )
       
         # save history
-        self.history_cost.append([ind.fcost for ind in population.get_solves()])
+        def update_non_moo():
+            self.history_cost.append([ind.fcost for ind in population.get_solves()])
+        
+        def update_moo():
+            self.history_cost.append([subpop.igd for subpop in population])
+        
+        self.update_history = update_moo if is_moo else update_non_moo
+        self.update_history()
+        
+        for pop in population:
+            print(pop.igd)
+        
         
         self.render_process(0, ['Cost'], [self.history_cost[-1]], use_sys= True)
                     
         try:
             for epoch in range(nb_generations):
                 genes, costs, skf, bests, population= self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population)
-                
+                print(epoch, 'hehe')
+
                 if self.record:
                     if not hasattr(self, 'df'):
                         columns = [f'genes_0_{i}' for i in range(genes.shape[-1])] + [f'genes_1_{i}' for i in range(genes.shape[-1])]  + ['cost', 'skill_factor', 'generation']
@@ -219,16 +233,21 @@ class betterModel(AbstractModel.model):
         population = population + offsprings
         
         # population.update_rank()
+        
+        
         population.update_rank()
+        
         sol = random.sample(offsprings.get_all_inds(), 100)
         # selection
         self.selection(population, [nb_inds_each_task] * len(self.tasks))
         last_best = np.stack([self.history_cost[-1][ind.skill_factor] for ind in sol])
+        
         # save history
-        self.history_cost.append([ind.fcost for ind in population.get_solves()])
+        self.update_history()
 
-        for i in range(len(self.history_cost[-1])):
-            assert self.history_cost[-1][i] == np.min([f.fcost for f in population.ls_subPop[i].ls_inds]), (self.history_cost[-1][i] , np.min([f.fcost for f in population.ls_subPop[i].ls_inds]))
+        
+        # for i in range(len(self.history_cost[-1])):
+        #     assert self.history_cost[-1][i] == np.min([f.fcost for f in population.ls_subPop[i].ls_inds]), (self.history_cost[-1][i] , np.min([f.fcost for f in population.ls_subPop[i].ls_inds]))
 
         #print
         self.render_process((cur_epoch+1)/nb_generations, ['Cost'], [self.history_cost[-1]], use_sys= True)

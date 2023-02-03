@@ -24,10 +24,11 @@ def main():
     args = get_parser().parse_args()
     kwargs = {}
     tasks, IndClass = ZDT_benchmark.get_tasks()
-    t = tasks[0]
-    a = np.array([1] * 30).astype(np.int64)
-    print(type(t))
-    print(t(a))
+    
+    # t = tasks[0]
+    # a = np.array([1] * 30).astype(np.int64)
+    # print(type(t))
+    # print(t(a))
         
     for loop in range(args.num_loops):
       baseModel = MFEA_base.betterModel()
