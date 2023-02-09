@@ -1,6 +1,7 @@
 from .task import AbstractTask
 import numpy as np
 import numba as nb
+from pymoo.problems import get_problem
 
 N_PARETO_POINTS = 100
 
@@ -26,59 +27,56 @@ ZDT6_PARAMS = {'dim': 10, 'up': 1, 'low':  0, 'optimal': np.zeros(30)
 def create_ZDT():
     
 
-    @nb.njit([nb.types.UniTuple(nb.float64, 2)(nb.int64[:]), nb.types.UniTuple(nb.float64, 2)(nb.float64[:])])
-    def func_zdt1(x):
+    @nb.njit([nb.types.UniTuple(nb.float64, 2)(nb.int64[:], nb.int64), nb.types.UniTuple(nb.float64, 2)(nb.float64[:], nb.int64)])
+    def func_zdt1(x, n_var):
         f1 = x[0]
-        g = 1 + 9.0 / 29 * np.sum(x[1:])
+        g = 1 + 9.0 / (n_var - 1) * np.sum(x[1:])
         f2 = g * (1 - np.sqrt((x[0] / g)))
         return f1, f2
     
-    @nb.njit([nb.types.UniTuple(nb.float64, 2)(nb.int64[:]), nb.types.UniTuple(nb.float64, 2)(nb.float64[:])])
-    def func_zdt2(x):
+    @nb.njit([nb.types.UniTuple(nb.float64, 2)(nb.int64[:], nb.int64), nb.types.UniTuple(nb.float64, 2)(nb.float64[:], nb.int64)])
+    def func_zdt2(x, n_var):
         
         f1 = x[0]
         c = np.sum(x[1:])
-        g = 1.0 + 9.0 * c / 29
+        g = 1.0 + 9.0 * c / (30 - n_var)
         f2 = g * (1 - np.power((f1 * 1.0 / g), 2))
 
         return f1, f2
 
-    @nb.njit([nb.types.UniTuple(nb.float64, 2)(nb.int64[:]), nb.types.UniTuple(nb.float64, 2)(nb.float64[:])])
-    def func_zdt2(x):
-        
-        f1 = x[0]
-        c = np.sum(x[1:])
-        g = 1.0 + 9.0 * c / 29
-        f2 = g * (1 - np.power((f1 * 1.0 / g), 2))
-
-        return f1, f2
     
-    @nb.njit([nb.types.UniTuple(nb.float64, 2)(nb.int64[:]), nb.types.UniTuple(nb.float64, 2)(nb.float64[:])])
-    def func_zdt3(x):
+    @nb.njit([nb.types.UniTuple(nb.float64, 2)(nb.int64[:], nb.int64), nb.types.UniTuple(nb.float64, 2)(nb.float64[:], nb.int64)])
+    def func_zdt3(x, n_var):
         
         f1 = x[0]
         c = np.sum(x[1:])
-        g = 1.0 + 9.0 * c / 29
+        g = 1.0 + 9.0 * c / (30 - n_var)
         f2 = g * (1 - np.power(f1 * 1.0 / g, 0.5) - (f1 * 1.0 / g) * np.sin(10 * np.pi * f1))
 
         return f1, f2
     
     #NOTE: implement zdt 5, 6
-    @nb.njit([nb.types.UniTuple(nb.float64, 2)(nb.int64[:]), nb.types.UniTuple(nb.float64, 2)(nb.float64[:])])
-    def func_zdt4(x):
+    @nb.njit([nb.types.UniTuple(nb.float64, 2)(nb.int64[:], nb.int64), nb.types.UniTuple(nb.float64, 2)(nb.float64[:], nb.int64)])
+    def func_zdt4(x, n_var):
         
         f1 = x[0]
-    
+
+        g = 1.0 + 10 * (n_var - 1)
         
-        g = 91 +  np.sum(x[1:] * x[1:] - 10 * np.cos(4.0 * np.pi * x[1:]))
+        g = g +  np.sum(x[1:] * x[1:] - 10 * np.cos(4.0 * np.pi * x[1:]))
         h = 1.0 - np.sqrt(f1 / g)
         
         f2 = g * h
 
         return f1, f2
     
-    @nb.njit([nb.types.UniTuple(nb.float64, 2)(nb.int64[:]), nb.types.UniTuple(nb.float64, 2)(nb.float64[:])])
-    def func_zdt5(x):
+    @nb.njit([nb.types.UniTuple(nb.float64, 2)(nb.int64[:], nb.int64, nb.int64), nb.types.UniTuple(nb.float64, 2)(nb.float64[:], nb.int64, nb.int64)])
+    def func_zdt5(x, m, n):
+        
+        _x = np.empty((x.shape[0], 30), dtype = np.float64)
+        for i in nb.prange(m):
+            x[i] = x[1]
+        
         
         f1 = x[0]
         c = np.sum(x[1:])
