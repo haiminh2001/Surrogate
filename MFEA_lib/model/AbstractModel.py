@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import random
 import time 
 from IPython.display import display, clear_output
+from termcolor import colored
 
 class model():
     def __init__(self, seed = None, percent_print = 0.5) -> None:
@@ -133,7 +134,7 @@ class model():
         if use_sys is True: 
             # sys.stdout.write("\033[K")
             sys.stdout.flush() 
-            sys.stdout.write("\r" + print_line)
+            sys.stdout.write(colored("\r" + print_line, 'green'))
             sys.stdout.flush() 
     
     def render_process_terminal(self,curr_progress, list_desc, list_value, *args, **kwargs):
@@ -151,8 +152,8 @@ class model():
         minutes = seconds // 60 
         seconds = seconds - minutes * 60 
 
-        print(ERASE_LINE + process_line)
-        print(ERASE_LINE + "time: %02dm %.02fs"%(minutes, seconds))
+        print(colored(ERASE_LINE + process_line, 'green'))
+        print(colored(ERASE_LINE + "time: %02dm %.02fs"%(minutes, seconds), 'green'))
         if self.display_time is True: 
             pass
         for i in range(len(list_desc)):
@@ -160,7 +161,7 @@ class model():
             for value in range(len(list_value[i])):
                 desc = desc + str("%.2E " % (list_value[i][value])) + " "
             line = '{}: {}'.format(list_desc[i], desc)
-            print(ERASE_LINE+ line)
+            print(colored(ERASE_LINE+ line, 'green'))
         
         self.count_pre_line = 2 + len(list_desc)
             
