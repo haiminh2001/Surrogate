@@ -38,7 +38,7 @@ def main():
           **kwargs
       )
       solve = baseModel.fit(
-          nb_generations = 100, rmp = 0.5, nb_inds_each_task= 100, 
+          nb_generations = 500, rmp = 0.5, nb_inds_each_task= 100, 
           bound_pop= [0, 1], evaluate_initial_skillFactor= False, is_moo = True,
           train_period = args.train_period, start_eval = args.start_eval,
       )
