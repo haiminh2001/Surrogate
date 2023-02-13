@@ -146,6 +146,14 @@ class ZDT_Task(AbstractTask):
         self.test_id = f'problem {test_id}'
         self.args = [arg for arg in [dim, m, n] if arg]
         self.test_value()
+    
+    @property
+    def dims(self):
+        return np.array([self.dim] * self.num_objs)
+    
+    @property
+    def num_objs(self):
+        return 2
          
 
         

@@ -21,15 +21,18 @@ class betterModel(AbstractModel.model):
         save_path:str = None,
         use_surrogate: bool = False,
         surrogate_model: BaseSurrogate = Optional,
-        recorder: BaseRecorder = Optional,
+        recorder_class: BaseRecorder.__class__ = Optional,
         surrogate_params: dict = {},
         *args, **kwargs):
         
         if use_surrogate:
             self.surrogate_model = surrogate_model
             self.surrogate_params = surrogate_params
-            self.recorder = recorder
+            self.recorder_class = recorder_class
             self.use_surrogate = use_surrogate
+            dims = np.array([task.dims for task in tasks])
+            num_objs = [task.num_objs for task in tasks]
+            self.surrogate_model.init_subpop_models(num_objs=num_objs, dims= dims)            
             
         self.record = record
         self.merge = merge
@@ -41,7 +44,7 @@ class betterModel(AbstractModel.model):
             evaluate_initial_skillFactor = True, init_surrogate_gens = 5
             , start_eval = 6, is_moo = False, *args, **kwargs) -> list:
         super().fit(*args, **kwargs)
-
+        
         # initialize population
         population = Population(
             self.IndClass,
@@ -64,16 +67,16 @@ class betterModel(AbstractModel.model):
 
         self.render_process(0, ['Cost'], [self.history_cost[-1]], use_sys= True)
                     
-        with self.recorder:
+        with self.recorder_class() as recorder:
             for epoch in range(nb_generations):
                 #evo step
                 genes, costs, skf, bests, population= self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population)
 
                 if self.use_surrogate:
-                    self.recorder.record(genes, costs, skf)
+                    recorder.record(genes, costs, skf)
                 
                 if epoch == init_surrogate_gens - 1:
-                    genes, costs, skf = self.recorder.getall
+                    genes, costs, skf = recorder.getall
                     self.surrogate_model.fit(genes, costs, skf)
                 
 

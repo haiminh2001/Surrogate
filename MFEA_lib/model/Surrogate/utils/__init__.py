@@ -1,1 +1,1 @@
-from .recorder import BaseRecorder, InMemRecorder
+from .recorder import BaseRecorder, InMemRecorder, InMemRecorderNumpy

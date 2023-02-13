@@ -1,1 +1,2 @@
-from .BaseSurrogate import BaseSurrogate 
+from .BaseSurrogate import BaseSurrogate, MOO_BaseSubpopSurrogate
+from .GaussianProcessSurrogate import GaussianProcessSingleModel

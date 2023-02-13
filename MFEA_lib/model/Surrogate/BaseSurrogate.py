@@ -19,8 +19,11 @@ class BaseSingleModel:
 
 
 class BaseSubpopSurrogate:
-    def __init__(self, model_cls):
-        self.model = model_cls()
+    def __init__(self, single_model_class):
+        self.model = single_model_class()
+        
+    def init_single_model(self, num_objs: int, dims: np.ndarray):
+        pass
         
     def fit(self, X, y):
         raise Exception("Fit function not implemented")
@@ -34,14 +37,23 @@ class BaseSubpopSurrogate:
 
     
 class BaseSurrogate:
-    def __init__(self, num_sub_pop: int, eval_metric = MAPE, subpop_surroagte_class= BaseSubpopSurrogate, single_modeLclass = BaseSingleModel):
+    def __init__(self, num_sub_pop: int, eval_metric = MAPE, subpop_surroagte_class= BaseSubpopSurrogate.__class__,
+                 single_model_class = BaseSingleModel.__class__):
         super().__init__()
-        self.models: list = [subpop_surroagte_class() for _ in range(num_sub_pop)]
+        self.models: list = [subpop_surroagte_class(eval_metric = eval, single_model_class= single_model_class) for _ in range(num_sub_pop)]
         self.eval_metric = eval_metric
         self.num_sub_pop = num_sub_pop
+        self.is_init = False
+    
+    def init_subpop_models(self, num_objs:list, dims: np.ndarray):
+        for i, model in enumerate(self.models):
+            model.init_single_model(num_objs= num_objs[i], dims= dims[i])
+        self.is_init = True
+        
     
     def prepare_data(self, skf, genes, costs = None):
-        for i in self.num_sub_pop:
+        assert self.is_init, 'Surrogate model not initialized!!'
+        for i in range(self.num_sub_pop):
             index = skf == i 
             
             if costs == None:
@@ -50,13 +62,15 @@ class BaseSurrogate:
                 yield genes[index], costs[index]
         
     def fit(self, genes, costs, skf):
-        
+        assert self.is_init, 'Surrogate model not initialized!!'
+        assert len(costs.shape) >= 2, costs.shape
         for i, (X, y) in enumerate(self.prepare_data(skf, genes, costs)):
             if len(y):
                 assert len(X) == len(y)
                 self.models[i].fit(X, y)
     
     def predict(self, genes, skf):
+        assert self.is_init, 'Surrogate model not initialized!!'
         for i, X in enumerate(self.prepare_data(skf, genes)):
             if len(X):
                 yield self.models[i].predict(X)
@@ -64,6 +78,7 @@ class BaseSurrogate:
                 yield [] 
     
     def evaluate(self, genes, costs, skf):
+        assert self.is_init, 'Surrogate model not initialized!!'
         for i, (X, y) in enumerate(self.prepare_data(skf, genes, costs)):
             if len(y):
                 assert len(X) == len(y)
@@ -72,21 +87,27 @@ class BaseSurrogate:
                 yield None
     
 class MOO_BaseSubpopSurrogate(BaseSubpopSurrogate):
-    def __init__(self, num_objs: int, num_dims: list, model_cls = BaseSingleModel, eval_metric = MAPE):
+    def __init__(self, single_model_class = BaseSingleModel.__class__, eval_metric = MAPE):
+        self.single_model_class = single_model_class
+        self.eval_metric = eval_metric
+        
+    
+    def init_single_model(self, num_objs: int, dims: np.ndarray):
+        assert len(dims.shape) == 1, 'dims must be an array'
         self.num_objs = num_objs
-        self.num_dims = num_dims
-        self.models = [model_cls(eval_metric) for _ in range(num_objs)]
+        self.dims = dims
+        self.models = [self.single_model_class(self.eval_metric) for _ in range(num_objs)]
         
     def predict(self, X):
         for i, model in enumerate(self.models):
-            yield model.predict(X[: self.num_dims[i]])
+            yield model.predict(X[: self.dims[i]])
     
     def fit(self, X, y):
         for i, model in enumerate(self.models):
-            model.fit(X[: self.num_dims[i]], y[:, i])
+            model.fit(X[: self.dims[i]], y[:, i])
 
     def evaluate(self, X, y):
         for i, model in enumerate(self.models):
-            model.evaluate(X[: self.num_dims[i]], y[:, i])
+            model.evaluate(X[: self.dims[i]], y[:, i])
 
         

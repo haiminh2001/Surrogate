@@ -9,10 +9,13 @@ class BaseRecorder:
         self.last_costs = None
         self.last_skf = None
     
-    def __open__(self):
-        pass
+    def __enter__(self):
+        return self
     
-    def __exit__(self):
+    def __exit__(self, *args):
+        self.save_data()
+    
+    def save_data(self):
         pass
     
     def record(self, genes, costs, skf):
