@@ -3,13 +3,11 @@ from . import AbstractModel
 from ..operators import Crossover, Mutation, Selection
 from ..EA import *
 import random
-from Surrogate.utils import BaseRecorder
+from .Surrogate.utils import BaseRecorder
 from termcolor import colored
 import os
 import pandas as pd
-import traceback
-import subprocess
-from Surrogate import BaseSurrogate
+from .Surrogate import BaseSurrogate
 from typing import Optional
 
 
