@@ -51,12 +51,12 @@ class BaseSurrogate:
         self.is_init = True
         
     
-    def prepare_data(self, skf, genes, costs = None):
+    def prepare_data(self, skf, genes, costs):
         assert self.is_init, 'Surrogate model not initialized!!'
         for i in range(self.num_sub_pop):
             index = skf == i 
             
-            if costs == None:
+            if type(costs) != np.ndarray:
                 yield genes[index]
             else:
                 yield genes[index], costs[index]
@@ -100,14 +100,14 @@ class MOO_BaseSubpopSurrogate(BaseSubpopSurrogate):
         
     def predict(self, X):
         for i, model in enumerate(self.models):
-            yield model.predict(X[: self.dims[i]])
+            yield model.predict(X[:, : self.dims[i]])
     
     def fit(self, X, y):
         for i, model in enumerate(self.models):
-            model.fit(X[: self.dims[i]], y[:, i])
+            model.fit(X[:, : self.dims[i]], y[:, i])
 
     def evaluate(self, X, y):
         for i, model in enumerate(self.models):
-            model.evaluate(X[: self.dims[i]], y[:, i])
+            model.evaluate(X[:, : self.dims[i]], y[:, i])
 
         

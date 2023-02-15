@@ -103,7 +103,7 @@ class SubPopulation:
         self.dim = dim
         self.ls_inds = [
             IndClass(None, self.dim)
-            for i in range(num_inds)
+            for _ in range(num_inds)
         ]
         self.IndClass = IndClass
         for i in range(num_inds):

@@ -70,8 +70,7 @@ class betterModel(AbstractModel.model):
         with self.recorder_class() as recorder:
             for epoch in range(nb_generations):
                 #evo step
-                genes, costs, skf, bests, population= self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population)
-
+                genes, costs, skf, population= self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population, is_moo= is_moo)
                 if self.use_surrogate:
                     recorder.record(genes, costs, skf)
                 
@@ -89,14 +88,16 @@ class betterModel(AbstractModel.model):
         return self.last_pop.get_solves() 
     
     
-    def epoch_step(self, rmp, cur_epoch, nb_inds_each_task, nb_generations, population):
+    def epoch_step(self, rmp, cur_epoch, nb_inds_each_task, nb_generations, population, is_moo):
         # initial offspring_population of generation
         offsprings = Population(
             self.IndClass,
             nb_inds_tasks = [0] * len(self.tasks), 
             dim = self.dim_uss,
             list_tasks= self.tasks,
+            is_moo = is_moo
         )
+        
 
         # create offspring pop
         while len(offsprings) < len(population):
@@ -125,18 +126,16 @@ class betterModel(AbstractModel.model):
         
         population.update_rank()
         
-        sol = random.sample(offsprings.get_all_inds(), 100)
         # selection
         self.selection(population, [nb_inds_each_task] * len(self.tasks))
-        last_best = np.stack([self.history_cost[-1][ind.skill_factor] for ind in sol])
         
         # save history
         self.update_history()
 
         #print
         self.render_process((cur_epoch+1)/nb_generations, ['Cost'], [self.history_cost[-1]], use_sys= True)
-        return np.stack([ind.genes for ind in sol]), np.hstack([ind.fcost for ind in sol]), \
-                np.hstack([ind.skill_factor for ind in sol]), last_best, population
+        return np.stack([ind.genes for ind in offsprings.get_all_inds()]), np.stack([ind.fcost for ind in offsprings.get_all_inds()]), \
+                np.stack([ind.skill_factor for ind in offsprings.get_all_inds()]), population
                 
 
 
