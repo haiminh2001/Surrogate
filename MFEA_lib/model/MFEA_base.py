@@ -2,13 +2,10 @@ import numpy as np
 from . import AbstractModel
 from ..operators import Crossover, Mutation, Selection
 from ..EA import *
-import random
-from .Surrogate.utils import BaseRecorder
+from .Surrogate.utils import BaseRecorder, BaseSubsetSelection
 from termcolor import colored
-import os
-import pandas as pd
 from .Surrogate import BaseSurrogate
-from typing import Optional
+from typing import Optional, Type
 
 
 class betterModel(AbstractModel.model):
@@ -21,7 +18,8 @@ class betterModel(AbstractModel.model):
         save_path:str = None,
         use_surrogate: bool = False,
         surrogate_model: BaseSurrogate = Optional,
-        recorder_class: BaseRecorder.__class__ = Optional,
+        recorder_class: Type(BaseRecorder) = Optional,
+        subset_selection: BaseSubsetSelection = Optional,
         surrogate_params: dict = {},
         *args, **kwargs):
         
@@ -30,6 +28,7 @@ class betterModel(AbstractModel.model):
             self.surrogate_params = surrogate_params
             self.recorder_class = recorder_class
             self.use_surrogate = use_surrogate
+            self.subset_selection = subset_selection
             dims = np.array([task.dims for task in tasks])
             num_objs = [task.num_objs for task in tasks]
             self.surrogate_model.init_subpop_models(num_objs=num_objs, dims= dims)            
@@ -70,7 +69,7 @@ class betterModel(AbstractModel.model):
         with self.recorder_class() as recorder:
             for epoch in range(nb_generations):
                 #evo step
-                genes, costs, skf, population= self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population, is_moo= is_moo)
+                genes, costs, skf, population= self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population)
                 if self.use_surrogate:
                     recorder.record(genes, costs, skf)
                 
@@ -88,14 +87,14 @@ class betterModel(AbstractModel.model):
         return self.last_pop.get_solves() 
     
     
-    def epoch_step(self, rmp, cur_epoch, nb_inds_each_task, nb_generations, population, is_moo):
+    def epoch_step(self, rmp, cur_epoch, nb_inds_each_task, nb_generations, population):
         # initial offspring_population of generation
         offsprings = Population(
             self.IndClass,
             nb_inds_tasks = [0] * len(self.tasks), 
             dim = self.dim_uss,
             list_tasks= self.tasks,
-            is_moo = is_moo
+            is_moo = population.is_moo
         )
         
 
@@ -119,11 +118,13 @@ class betterModel(AbstractModel.model):
             offsprings.__addIndividual__(oa)
             offsprings.__addIndividual__(ob)
 
+        #select subset for surrogate
+        if self.use_surrogate:
+            self.subset_selection.set_subset(offsprings, train_amount= 0.1)
+            subset_inds = self.subset_selection.inds
+        
         # merge and update rank
         population = population + offsprings
-        
-        
-        
         population.update_rank()
         
         # selection
@@ -134,8 +135,8 @@ class betterModel(AbstractModel.model):
 
         #print
         self.render_process((cur_epoch+1)/nb_generations, ['Cost'], [self.history_cost[-1]], use_sys= True)
-        return np.stack([ind.genes for ind in offsprings.get_all_inds()]), np.stack([ind.fcost for ind in offsprings.get_all_inds()]), \
-                np.stack([ind.skill_factor for ind in offsprings.get_all_inds()]), population
+        return np.stack([ind.genes for ind in subset_inds]), np.stack([ind.fcost for ind in subset_inds]), \
+                np.stack([ind.skill_factor for ind in subset_inds]), population
                 
 
 

@@ -4,7 +4,7 @@ from MFEA_lib.model.utils import *
 from MFEA_lib.operators.Crossover import SBX_Crossover
 from MFEA_lib.operators.Mutation import *
 from MFEA_lib.operators.Selection import *
-from MFEA_lib.model.Surrogate.utils import InMemRecorderNumpy
+from MFEA_lib.model.Surrogate.utils import InMemRecorderNumpy, BaseSubsetSelection
 from MFEA_lib.model.Surrogate import GaussianProcessSingleModel, BaseSurrogate, MOO_BaseSubpopSurrogate
 import argparse
 def get_parser():
@@ -27,12 +27,16 @@ def main():
     tasks, IndClass = ZDT_benchmark.get_tasks()
     
     surrogate_model = None
+    recorder_class = None
+    subset_selection = None
+    
     if args.use_surrogate:
         surrogate_model = BaseSurrogate(num_sub_pop= len(tasks),
                                         subpop_surroagte_class= MOO_BaseSubpopSurrogate,
                                         single_model_class= GaussianProcessSingleModel
                                         )
         recorder_class = InMemRecorderNumpy
+        subset_selection = BaseSubsetSelection()
         
     for _ in range(args.num_loops):
       baseModel = MFEA_base.betterModel()
@@ -47,6 +51,7 @@ def main():
           use_surrogate= args.use_surrogate,
           surrogate_model= surrogate_model,
           recorder_class= recorder_class,
+          subset_selection = subset_selection,
           **kwargs
       )
       solve = baseModel.fit(
