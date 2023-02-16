@@ -36,7 +36,7 @@ def main():
                                         single_model_class= GaussianProcessSingleModel
                                         )
         recorder_class = InMemRecorderNumpy
-        subset_selection = BaseSubsetSelection()
+        subset_selection = BaseSubsetSelection
         
     for _ in range(args.num_loops):
       baseModel = MFEA_base.betterModel()

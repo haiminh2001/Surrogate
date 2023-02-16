@@ -18,8 +18,8 @@ class betterModel(AbstractModel.model):
         save_path:str = None,
         use_surrogate: bool = False,
         surrogate_model: BaseSurrogate = Optional,
-        recorder_class: Type(BaseRecorder) = Optional,
-        subset_selection: BaseSubsetSelection = Optional,
+        recorder_class: Type= Optional,
+        subset_selection: Type = Optional,
         surrogate_params: dict = {},
         *args, **kwargs):
         
@@ -41,7 +41,7 @@ class betterModel(AbstractModel.model):
     
     def fit(self, nb_generations, rmp = 0.3, nb_inds_each_task = 100,
             evaluate_initial_skillFactor = True, init_surrogate_gens = 5
-            , start_eval = 6, is_moo = False, *args, **kwargs) -> list:
+            , start_eval = 6, is_moo = False, test_amount = 0.1, *args, **kwargs) -> list:
         super().fit(*args, **kwargs)
         
         # initialize population
@@ -66,20 +66,21 @@ class betterModel(AbstractModel.model):
 
         self.render_process(0, ['Cost'], [self.history_cost[-1]], use_sys= True)
                     
-        with self.recorder_class() as recorder:
+        with self.recorder_class(subset_selection = self.subset_selection, test_amount = test_amount) as recorder:
             for epoch in range(nb_generations):
                 #evo step
                 genes, costs, skf, population= self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population)
+                
                 if self.use_surrogate:
                     recorder.record(genes, costs, skf)
                 
                 if epoch == init_surrogate_gens - 1:
-                    genes, costs, skf = recorder.getall
+                    genes, costs, skf = recorder.all
                     self.surrogate_model.fit(genes, costs, skf)
                 
-
-        self.write_data()
-        
+                if epoch >= init_surrogate_gens:
+                    pass
+                        
         print(colored('\nEND!', 'red'))
 
         #solve
@@ -119,9 +120,7 @@ class betterModel(AbstractModel.model):
             offsprings.__addIndividual__(ob)
 
         #select subset for surrogate
-        if self.use_surrogate:
-            self.subset_selection.set_subset(offsprings, train_amount= 0.1)
-            subset_inds = self.subset_selection.inds
+        
         
         # merge and update rank
         population = population + offsprings
@@ -135,8 +134,11 @@ class betterModel(AbstractModel.model):
 
         #print
         self.render_process((cur_epoch+1)/nb_generations, ['Cost'], [self.history_cost[-1]], use_sys= True)
-        return np.stack([ind.genes for ind in subset_inds]), np.stack([ind.fcost for ind in subset_inds]), \
-                np.stack([ind.skill_factor for ind in subset_inds]), population
+        
+        
+        inds = population.get_all_inds()
+        return np.stack([ind.genes for ind in inds]), np.stack([ind.fcost for ind in inds]), \
+                np.stack([ind.skill_factor for ind in inds]), population
                 
 
 

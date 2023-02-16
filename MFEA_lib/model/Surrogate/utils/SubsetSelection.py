@@ -24,7 +24,6 @@ class BaseSubsetSelection:
         )
         
         
-        
         for i, subpop in population:
             #shuffle 
             perm = np.random.permutation(len(subpop))
@@ -35,9 +34,12 @@ class BaseSubsetSelection:
             self.subset_test[i] = self.subset_test[i] + subpop[test_index]
     
     @property
-    def train_inds(self) -> list:
-        return self.subset_train.get_all_inds()
+    def train_inds(self) -> tuple:
+        inds = self.subset_train.get_all_inds()
+        return [ind.genes for ind in inds], [ind.fcost for ind in inds], [ind.skill_factor for ind in inds]
+        
         
     @property
-    def test_inds(self) -> list:
-        return self.subset_test.get_all_inds()
+    def test_inds(self) -> tuple:
+        inds = self.subset_test.get_all_inds()
+        return [ind.genes for ind in inds], [ind.fcost for ind in inds], [ind.skill_factor for ind in inds]
