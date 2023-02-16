@@ -2,19 +2,22 @@ import numpy as np
 from sklearn.metrics import mean_absolute_percentage_error as MAPE
 
 class BaseSingleModel:
-    def __init__(self, eval_metric = MAPE):
-        self.eval_metric = eval_metric
+    def __init__(self, eval_metric = MAPE, init_before_fit = False):
+        self.eval_func = eval_metric
+        self.init_before_fit = init_before_fit
     
     def fit(self, X, y):
         pass
         
+    def init_model(self):
+        pass
     
     def predict(self, X):
         pass
     
     def evaluate(self, X, y):
         y_hat = self.predict(X)
-        return self.eval_metric(y, y_hat)
+        return self.eval_func(y, y_hat)
         
 
 
@@ -40,7 +43,7 @@ class BaseSurrogate:
     def __init__(self, num_sub_pop: int, eval_metric = MAPE, subpop_surroagte_class= BaseSubpopSurrogate.__class__,
                  single_model_class = BaseSingleModel.__class__):
         super().__init__()
-        self.models: list = [subpop_surroagte_class(eval_metric = eval, single_model_class= single_model_class) for _ in range(num_sub_pop)]
+        self.models: list = [subpop_surroagte_class(eval_metric = eval_metric, single_model_class= single_model_class) for _ in range(num_sub_pop)]
         self.eval_metric = eval_metric
         self.num_sub_pop = num_sub_pop
         self.is_init = False
@@ -82,7 +85,7 @@ class BaseSurrogate:
         for i, (X, y) in enumerate(self.prepare_data(skf, genes, costs)):
             if len(y):
                 assert len(X) == len(y)
-                self.modesl[i].evaluate(X, y)
+                yield self.models[i].evaluate(X, y)
             else:
                 yield None
     
@@ -107,7 +110,8 @@ class MOO_BaseSubpopSurrogate(BaseSubpopSurrogate):
             model.fit(X[:, : self.dims[i]], y[:, i])
 
     def evaluate(self, X, y):
+        result = []
         for i, model in enumerate(self.models):
-            model.evaluate(X[:, : self.dims[i]], y[:, i])
-
+            result.append(model.evaluate(X[:, : self.dims[i]], y[:, i]))
+        return result
         

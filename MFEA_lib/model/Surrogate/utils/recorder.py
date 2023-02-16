@@ -43,13 +43,14 @@ class InMemRecorder(BaseRecorder):
     def __init__(self, subset_selection:Type = None, test_amount = 0.1):
         super().__init__(subset_selection, test_amount)
         
-    def record(self, genes, costs, skf):
+    def record(self, genes, costs, skf, offspring):
         self.genes.extend(genes)
         self.costs.extend(costs)
         self.skf.extend(skf)
         self.last_genes = genes
         self.last_costs = costs
         self.last_skf = skf
+        self.last_offspring = offspring
     
 class InMemRecorderNumpy(InMemRecorder):
     def __init__(self, subset_selection:Type = None, test_amount = 0.1):
@@ -62,3 +63,8 @@ class InMemRecorderNumpy(InMemRecorder):
     @property
     def last(self):
         return np.array(self.last_genes), np.array(self.last_costs), np.array(self.last_skf)
+    
+    @property
+    def last_train_test_split(self):
+        self.subset_selection.set_subset(self.last_offspring, 1 - self.test_amount)
+        return [np.array(x) for x in self.subset_selection.train_inds], [np.array(x) for x in  self.subset_selection.test_inds]

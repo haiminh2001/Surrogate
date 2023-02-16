@@ -69,17 +69,20 @@ class betterModel(AbstractModel.model):
         with self.recorder_class(subset_selection = self.subset_selection, test_amount = test_amount) as recorder:
             for epoch in range(nb_generations):
                 #evo step
-                genes, costs, skf, population= self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population)
+                genes, costs, skf, population, offsprings= self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population)
                 
                 if self.use_surrogate:
-                    recorder.record(genes, costs, skf)
+                    recorder.record(genes, costs, skf, offsprings)
                 
                 if epoch == init_surrogate_gens - 1:
                     genes, costs, skf = recorder.all
                     self.surrogate_model.fit(genes, costs, skf)
                 
                 if epoch >= init_surrogate_gens:
-                    pass
+                    (train_genes, train_costs, train_skf), (test_genes, test_costs, test_skf) = recorder.last_train_test_split
+                    self.surrogate_model.fit(train_genes, train_costs, train_skf)
+                    print(tuple(self.surrogate_model.evaluate(test_genes, test_costs, test_skf)))
+                    
                         
         print(colored('\nEND!', 'red'))
 
@@ -138,7 +141,7 @@ class betterModel(AbstractModel.model):
         
         inds = population.get_all_inds()
         return np.stack([ind.genes for ind in inds]), np.stack([ind.fcost for ind in inds]), \
-                np.stack([ind.skill_factor for ind in inds]), population
+                np.stack([ind.skill_factor for ind in inds]), population, offsprings
                 
 
 

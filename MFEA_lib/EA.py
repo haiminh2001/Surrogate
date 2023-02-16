@@ -123,10 +123,10 @@ class SubPopulation:
         except:
             if type(index) == int:
                 self.ls_inds[index]
-            elif type(index) == list:
+            elif type(index) == list or type(index) == np.ndarray:
                 return [self.ls_inds[i] for i in index]
             else:
-                raise TypeError('Int, Slice or list[int], not ' + str(type(index)))
+                raise TypeError('Int, Slice or list[int], np.ndarray, not ' + str(type(index)))
 
     def __getRandomItems__(self, size:int = None, replace:bool = False):
         if size == 0:

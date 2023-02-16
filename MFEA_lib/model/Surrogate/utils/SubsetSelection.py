@@ -24,14 +24,19 @@ class BaseSubsetSelection:
         )
         
         
-        for i, subpop in population:
+        for i, subpop in enumerate(population):
             #shuffle 
             perm = np.random.permutation(len(subpop))
             train_index = perm[:int(len(subpop) * train_amount)]
             test_index = perm[int(len(subpop) * train_amount):]
             
-            self.subset_train[i] = self.subset_train[i] + subpop[train_index]
-            self.subset_test[i] = self.subset_test[i] + subpop[test_index]
+            for idx in train_index:
+                self.subset_train[i].ls_inds.append(subpop[idx])
+            
+            for idx in test_index:
+                self.subset_test[i].ls_inds.append(subpop[idx])
+            
+            assert len(self.subset_test[i]) + len(self.subset_train[i]) == len(subpop)
     
     @property
     def train_inds(self) -> tuple:
