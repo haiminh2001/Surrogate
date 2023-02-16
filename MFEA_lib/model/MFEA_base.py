@@ -21,6 +21,7 @@ class betterModel(AbstractModel.model):
         recorder_class: Type= Optional,
         subset_selection: Type = Optional,
         surrogate_params: dict = {},
+        init_before_fit: bool = False,
         *args, **kwargs):
         
         if use_surrogate:
@@ -80,8 +81,13 @@ class betterModel(AbstractModel.model):
                 
                 if epoch >= init_surrogate_gens:
                     (train_genes, train_costs, train_skf), (test_genes, test_costs, test_skf) = recorder.last_train_test_split
+                    if self.surrogate_model.init_before_fit:
+                        genes, costs, skf = recorder.all_exclude_last
+                    
+                        train_genes = np.concatenate((train_genes, genes))
+                        train_costs = np.concatenate((train_costs, costs))
+                        train_skf = np.concatenate((train_skf, skf))
                     self.surrogate_model.fit(train_genes, train_costs, train_skf)
-                    print(tuple(self.surrogate_model.evaluate(test_genes, test_costs, test_skf)))
                     
                         
         print(colored('\nEND!', 'red'))

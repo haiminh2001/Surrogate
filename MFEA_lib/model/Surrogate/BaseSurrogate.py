@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn.metrics import mean_absolute_percentage_error as MAPE
-
+from typing import Type
 class BaseSingleModel:
     def __init__(self, eval_metric = MAPE, init_before_fit = False):
         self.eval_func = eval_metric
@@ -22,8 +22,8 @@ class BaseSingleModel:
 
 
 class BaseSubpopSurrogate:
-    def __init__(self, single_model_class):
-        self.model = single_model_class()
+    def __init__(self, single_model_class, init_before_fit = False):
+        self.model = single_model_class(init_before_fit)
         
     def init_single_model(self, num_objs: int, dims: np.ndarray):
         pass
@@ -41,12 +41,13 @@ class BaseSubpopSurrogate:
     
 class BaseSurrogate:
     def __init__(self, num_sub_pop: int, eval_metric = MAPE, subpop_surroagte_class= BaseSubpopSurrogate.__class__,
-                 single_model_class = BaseSingleModel.__class__):
+                 single_model_class = Type, init_before_fit:bool = False):
         super().__init__()
-        self.models: list = [subpop_surroagte_class(eval_metric = eval_metric, single_model_class= single_model_class) for _ in range(num_sub_pop)]
+        self.models: list = [subpop_surroagte_class(eval_metric = eval_metric, single_model_class= single_model_class, init_before_fit = init_before_fit) for _ in range(num_sub_pop)]
         self.eval_metric = eval_metric
         self.num_sub_pop = num_sub_pop
         self.is_init = False
+        self.init_before_fit = init_before_fit
     
     def init_subpop_models(self, num_objs:list, dims: np.ndarray):
         for i, model in enumerate(self.models):
@@ -90,16 +91,17 @@ class BaseSurrogate:
                 yield None
     
 class MOO_BaseSubpopSurrogate(BaseSubpopSurrogate):
-    def __init__(self, single_model_class = BaseSingleModel.__class__, eval_metric = MAPE):
+    def __init__(self, single_model_class: Type, eval_metric = MAPE, init_before_fit = False):
         self.single_model_class = single_model_class
         self.eval_metric = eval_metric
+        self.init_before_fit = init_before_fit
         
     
     def init_single_model(self, num_objs: int, dims: np.ndarray):
         assert len(dims.shape) == 1, 'dims must be an array'
         self.num_objs = num_objs
         self.dims = dims
-        self.models = [self.single_model_class(self.eval_metric) for _ in range(num_objs)]
+        self.models = [self.single_model_class(self.eval_metric, init_before_fit = self.init_before_fit) for _ in range(num_objs)]
         
     def predict(self, X):
         for i, model in enumerate(self.models):

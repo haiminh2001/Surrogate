@@ -33,7 +33,8 @@ def main():
     if args.use_surrogate:
         surrogate_model = BaseSurrogate(num_sub_pop= len(tasks),
                                         subpop_surroagte_class= MOO_BaseSubpopSurrogate,
-                                        single_model_class= GaussianProcessSingleModel
+                                        single_model_class= GaussianProcessSingleModel,
+                                        init_before_fit= True
                                         )
         recorder_class = InMemRecorderNumpy
         subset_selection = BaseSubsetSelection
