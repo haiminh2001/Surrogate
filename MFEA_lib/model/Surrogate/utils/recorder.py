@@ -47,9 +47,9 @@ class BaseRecorder:
         return self.last_genes, self.last_costs, self.last_skf
     
     @property
-    def last_train_test_split(self):
-        self.subset_selection.set_subset(self.last, 1 - self.test_amount)
-        return self.subset_selection.train_inds, self.subset_selection.test_inds
+    def train_test_split(self):
+        self.subset_selection.set_subset(self.last_offspring, 1 - self.test_amount)
+        return self.subset_selection.subset_train, self.subset_selection.subset_test
     
     @property
     def all_exclude_last(self):
@@ -60,14 +60,7 @@ class InMemRecorder(BaseRecorder):
     def __init__(self, subset_selection:Type = None, test_amount = 0.1):
         super().__init__(subset_selection, test_amount)
         
-    def record(self, genes, costs, skf, offspring):
-        self.prev_size = self.size
-        self.genes.extend(genes)
-        self.costs.extend(costs)
-        self.skf.extend(skf)
-        self.last_genes = genes
-        self.last_costs = costs
-        self.last_skf = skf
+    def record(self, offspring):
         self.last_offspring = offspring
         self.size = len(self.genes)
         

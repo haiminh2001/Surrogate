@@ -2,9 +2,9 @@ import numpy as np
 from sklearn.metrics import mean_absolute_percentage_error as MAPE
 from typing import Type
 class BaseSingleModel:
-    def __init__(self, eval_metric = MAPE, init_before_fit = False):
+    def __init__(self, eval_metric = MAPE, retrain_all_data = False):
         self.eval_func = eval_metric
-        self.init_before_fit = init_before_fit
+        self.retrain_all_data = retrain_all_data
     
     def fit(self, X, y):
         pass
@@ -22,8 +22,8 @@ class BaseSingleModel:
 
 
 class BaseSubpopSurrogate:
-    def __init__(self, single_model_class, init_before_fit = False):
-        self.model = single_model_class(init_before_fit)
+    def __init__(self, single_model_class, retrain_all_data = False):
+        self.model = single_model_class(retrain_all_data)
         
     def init_single_model(self, num_objs: int, dims: np.ndarray):
         pass
@@ -41,13 +41,13 @@ class BaseSubpopSurrogate:
     
 class BaseSurrogate:
     def __init__(self, num_sub_pop: int, eval_metric = MAPE, subpop_surroagte_class= BaseSubpopSurrogate.__class__,
-                 single_model_class = Type, init_before_fit:bool = False):
+                 single_model_class = Type, retrain_all_data:bool = False):
         super().__init__()
-        self.models: list = [subpop_surroagte_class(eval_metric = eval_metric, single_model_class= single_model_class, init_before_fit = init_before_fit) for _ in range(num_sub_pop)]
+        self.models: list = [subpop_surroagte_class(eval_metric = eval_metric, single_model_class= single_model_class, retrain_all_data = retrain_all_data) for _ in range(num_sub_pop)]
         self.eval_metric = eval_metric
         self.num_sub_pop = num_sub_pop
         self.is_init = False
-        self.init_before_fit = init_before_fit
+        self.retrain_all_data = retrain_all_data
     
     def init_subpop_models(self, num_objs:list, dims: np.ndarray):
         for i, model in enumerate(self.models):
@@ -55,35 +55,50 @@ class BaseSurrogate:
         self.is_init = True
         
     
-    def prepare_data(self, skf, genes, costs):
+    def prepare_data(self, population, get_cost, get_pseudo = False):
         assert self.is_init, 'Surrogate model not initialized!!'
+        inds = population.get_all_inds()
+        genes = np.stack([ind.genes for ind in inds])
+        skf = np.stack([ind.skill_factor for ind in inds])
+        
+        if get_pseudo:
+            costs = np.stack([ind.fcost_for_eval for ind in inds]) 
+          
+        if get_cost:
+            costs = np.stack([ind.fcost for ind in inds]) 
+          
+            
         for i in range(self.num_sub_pop):
             index = skf == i 
             
-            if type(costs) != np.ndarray:
-                yield genes[index]
-            else:
+            if get_cost or get_pseudo:
                 yield genes[index], costs[index]
+            else:
+                yield genes[index]
         
-    def fit(self, genes, costs, skf):
+    def fit(self, population):
         assert self.is_init, 'Surrogate model not initialized!!'
-        assert len(costs.shape) >= 2, costs.shape
-        for i, (X, y) in enumerate(self.prepare_data(skf, genes, costs)):
+        
+        for i, (X, y) in enumerate(self.prepare_data(population, get_cost= True)):
             if len(y):
                 assert len(X) == len(y)
                 self.models[i].fit(X, y)
     
-    def predict(self, genes, skf):
+    def predict(self, population):
         assert self.is_init, 'Surrogate model not initialized!!'
-        for i, X in enumerate(self.prepare_data(skf, genes)):
-            if len(X):
-                yield self.models[i].predict(X)
-            else:
-                yield [] 
+        rs = []
+        for i, X in enumerate(self.prepare_data(population, get_cost= False)):
+            assert len(X)
+            rs.append(self.models[i].predict(X))
+            # else:
+            #     rs.append([])
+        
+        return rs
     
-    def evaluate(self, genes, costs, skf):
+    def evaluate(self, population):
         assert self.is_init, 'Surrogate model not initialized!!'
-        for i, (X, y) in enumerate(self.prepare_data(skf, genes, costs)):
+        population.pseudo_evaluate()
+        for i, (X, y) in enumerate(self.prepare_data(population, get_cost = False, get_pseudo = True)):
             if len(y):
                 assert len(X) == len(y)
                 yield self.models[i].evaluate(X, y)
@@ -91,21 +106,23 @@ class BaseSurrogate:
                 yield None
     
 class MOO_BaseSubpopSurrogate(BaseSubpopSurrogate):
-    def __init__(self, single_model_class: Type, eval_metric = MAPE, init_before_fit = False):
+    def __init__(self, single_model_class: Type, eval_metric = MAPE, retrain_all_data = False):
         self.single_model_class = single_model_class
         self.eval_metric = eval_metric
-        self.init_before_fit = init_before_fit
+        self.retrain_all_data = retrain_all_data
         
     
     def init_single_model(self, num_objs: int, dims: np.ndarray):
         assert len(dims.shape) == 1, 'dims must be an array'
         self.num_objs = num_objs
         self.dims = dims
-        self.models = [self.single_model_class(self.eval_metric, init_before_fit = self.init_before_fit) for _ in range(num_objs)]
+        self.models = [self.single_model_class(self.eval_metric, retrain_all_data = self.retrain_all_data) for _ in range(num_objs)]
         
     def predict(self, X):
+        rs = []
         for i, model in enumerate(self.models):
-            yield model.predict(X[:, : self.dims[i]])
+            rs.append( model.predict(X[:, : self.dims[i]]))
+        return rs
     
     def fit(self, X, y):
         for i, model in enumerate(self.models):

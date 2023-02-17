@@ -15,6 +15,7 @@ class Individual:
     def __init__(self, genes, dim= None) -> None: 
         self.skill_factor: int = None
         self.fcost: float = None
+        self.fcost_for_eval: float = None
         self.genes: np.ndarray = np.copy(genes)
         
     def eval(self, task: AbstractTask) -> None:
@@ -108,16 +109,20 @@ class SubPopulation:
         self.IndClass = IndClass
         for i in range(num_inds):
             self.ls_inds[i].skill_factor = skill_factor
-            self.ls_inds[i].fcost = self.task(self.ls_inds[i].genes)
+            # self.ls_inds[i].fcost = self.task(self.ls_inds[i].genes)
 
         self.factorial_rank: np.ndarray = None
         self.scalar_fitness: np.ndarray = None
-        self.update_rank()
         
+    def pseudo_evaluate(self):
+        for i in range(len(self.ls_inds)):
+            self.ls_inds[i].fcost_for_eval = self.task(self.ls_inds[i].genes) if self.ls_inds[i].fcost == None else self.ls_inds[i].fcost
+                
     def evaluate(self):
-         for ind in self.ls_inds:
-            ind.skill_factor = self.skill_factor
-            ind.fcost = self.task(ind.genes)
+        for i in range(len(self.ls_inds)):
+            if self.ls_inds[i].fcost == None:
+                self.ls_inds[i].fcost = self.task(self.ls_inds[i].genes)
+        self.update_rank()
         
     def __len__(self): 
         return len(self.ls_inds)
@@ -290,6 +295,14 @@ class Population:
             return [self.ls_subPop[idx_task].ls_inds[idx] for idx in idx_inds[np.random.choice(len(idx_inds), size = size, replace= replace)].tolist()]
         else:
             raise ValueError('`type` ==  random | tournament | ontop, not equal ' + type)
+        
+    def pseudo_evaluate(self):
+        for subpop in self:
+            subpop.pseudo_evaluate()
+     
+    def evaluate(self):
+        for subpop in self:
+            subpop.evaluate()
         
 
     def __getRandomInds__(self, size: int = None, replace: bool = False):

@@ -4,8 +4,8 @@ from sklearn.metrics import mean_absolute_percentage_error as MAPE
 import numpy as np
 
 class GaussianProcessSingleModel(BaseSingleModel):
-    def __init__(self, eval_metric = MAPE, random_state = 42, init_before_fit = True):
-        super().__init__(eval_metric= eval_metric, init_before_fit= init_before_fit)
+    def __init__(self, eval_metric = MAPE, random_state = 42, retrain_all_data = True):
+        super().__init__(eval_metric= eval_metric, retrain_all_data= retrain_all_data)
         self.random_state = random_state
         self.init_model()
         
@@ -17,7 +17,7 @@ class GaussianProcessSingleModel(BaseSingleModel):
         return self.model.predict(X)
     
     def fit(self, X: np.ndarray, y: np.ndarray):
-        if self.init_before_fit:
+        if self.retrain_all_data:
             self.init_model()
         assert type(X) == np.ndarray and type(y) == np.ndarray
         self.model.fit(X, y)

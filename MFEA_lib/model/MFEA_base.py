@@ -62,6 +62,8 @@ class betterModel(AbstractModel.model):
             self.history_cost.append([subpop.igd for subpop in population])
         
         self.update_history = update_moo if is_moo else update_non_moo
+        
+        population.evaluate()
         self.update_history()
 
         self.render_process(0, ['Cost'], [self.history_cost[-1]], use_sys= True)
@@ -113,46 +115,59 @@ class betterModel(AbstractModel.model):
             offsprings.__addIndividual__(ob)
         
         
-        # merge and update rank
-        population = population + offsprings
 
-        
-        # save history
-        self.update_history()
-        
         
         if self.use_surrogate:
-            inds = population.get_all_inds()
-            genes = np.stack([ind.genes for ind in inds])
-            costs = np.stack([ind.fcost for ind in inds])
-            skf = np.stack([ind.skill_factor for ind in inds])
             
-            
-            recorder.record(genes, costs, skf, offsprings)
+            recorder.record(offsprings)
             
             if epoch == init_surrogate_gens - 1:
-                genes, costs, skf = recorder.all
-                self.surrogate_model.fit(genes, costs, skf)
+                self.surrogate_model.fit(population)
             
             if epoch >= init_surrogate_gens:
-                (train_genes, train_costs, train_skf), (test_genes, test_costs, test_skf) = recorder.last_train_test_split
-                if self.surrogate_model.init_before_fit:
-                    genes, costs, skf = recorder.all_exclude_last
+                offsprings_train, offsprings_test = recorder.train_test_split
                 
-                    train_genes = np.concatenate((train_genes, genes))
-                    train_costs = np.concatenate((train_costs, costs))
-                    train_skf = np.concatenate((train_skf, skf))
-
-                self.surrogate_model.fit(train_genes, train_costs, train_skf)
-
+                offsprings_train.evaluate()
+                if self.surrogate_model.retrain_all_data:
+                    self.surrogate_model.fit(population + offsprings_train)
+                else:
+                    self.surrogate_model.fit(offsprings_train)
+                
+                preds = self.surrogate_model.predict(offsprings_test)
+                test_inds = offsprings_test.get_all_inds()
+                
+                for i, pred in enumerate(preds):
+                    print(pred)
+                    test_inds[i].fcost = pred
+                
+                
+                for ind in offsprings_test.get_all_inds():
+                    assert ind.fcost != None
+                
+                offsprings = offsprings_train + offsprings_test
+            else:
+                offsprings.evaluate()
+                
+                
+        else:
+            offsprings.evaluate()
         
-        
+        for ind in offsprings.get_all_inds():
+            assert ind.fcost != None
 
         #print
         self.render_process((cur_epoch+1)/nb_generations, ['Cost'], [self.history_cost[-1]], use_sys= True)
         
+        # merge and update rank
+        
+        population = population + offsprings
+        
         
         population.update_rank()
+        
+        # save history
+        self.update_history()
+        
         
         # selection
         self.selection(population, [nb_inds_each_task] * len(self.tasks))
