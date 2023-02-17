@@ -1,6 +1,17 @@
 import numpy as np
 from typing import Type
 
+#Do nothing recorder for code flow purpose
+class NoneRecorder:
+    def __init__(self) -> None:
+        pass
+    
+    def __enter__(self):
+        pass
+    
+    def __exit__(self, *args):
+        pass
+
 class BaseRecorder:
     def __init__(self, subset_selection:Type = None, test_amount = 0.1):
         self.genes = []

@@ -2,7 +2,7 @@ import numpy as np
 from . import AbstractModel
 from ..operators import Crossover, Mutation, Selection
 from ..EA import *
-from .Surrogate.utils import BaseRecorder, BaseSubsetSelection
+from .Surrogate.utils import NoneRecorder
 from termcolor import colored
 from .Surrogate import BaseSurrogate
 from typing import Optional, Type
@@ -66,28 +66,12 @@ class betterModel(AbstractModel.model):
 
         self.render_process(0, ['Cost'], [self.history_cost[-1]], use_sys= True)
                     
-        with self.recorder_class(subset_selection = self.subset_selection, test_amount = test_amount) as recorder:
+        with (self.recorder_class(subset_selection = self.subset_selection, test_amount = test_amount) 
+              if self.use_surrogate else NoneRecorder()) as recorder:
             for epoch in range(nb_generations):
                 #evo step
-                genes, costs, skf, population, offsprings= self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population)
+                self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population, epoch, recorder, init_surrogate_gens)
                 
-                if self.use_surrogate:
-                    recorder.record(genes, costs, skf, offsprings)
-                
-                if epoch == init_surrogate_gens - 1:
-                    genes, costs, skf = recorder.all
-                    self.surrogate_model.fit(genes, costs, skf)
-                
-                if epoch >= init_surrogate_gens:
-                    (train_genes, train_costs, train_skf), (test_genes, test_costs, test_skf) = recorder.last_train_test_split
-                    if self.surrogate_model.init_before_fit:
-                        genes, costs, skf = recorder.all_exclude_last
-                    
-                        train_genes = np.concatenate((train_genes, genes))
-                        train_costs = np.concatenate((train_costs, costs))
-                        train_skf = np.concatenate((train_skf, skf))
-
-                    self.surrogate_model.fit(train_genes, train_costs, train_skf)
                     
                         
         print(colored('\nEND!', 'red'))
@@ -97,7 +81,7 @@ class betterModel(AbstractModel.model):
         return self.last_pop.get_solves() 
     
     
-    def epoch_step(self, rmp, cur_epoch, nb_inds_each_task, nb_generations, population):
+    def epoch_step(self, rmp, cur_epoch, nb_inds_each_task, nb_generations, population, epoch, recorder, init_surrogate_gens):
         # initial offspring_population of generation
         offsprings = Population(
             self.IndClass,
@@ -127,27 +111,51 @@ class betterModel(AbstractModel.model):
             
             offsprings.__addIndividual__(oa)
             offsprings.__addIndividual__(ob)
-
-        #select subset for surrogate
         
         
         # merge and update rank
         population = population + offsprings
-        population.update_rank()
-        
-        # selection
-        self.selection(population, [nb_inds_each_task] * len(self.tasks))
+
         
         # save history
         self.update_history()
+        
+        
+        if self.use_surrogate:
+            inds = population.get_all_inds()
+            genes = np.stack([ind.genes for ind in inds])
+            costs = np.stack([ind.fcost for ind in inds])
+            skf = np.stack([ind.skill_factor for ind in inds])
+            
+            
+            recorder.record(genes, costs, skf, offsprings)
+            
+            if epoch == init_surrogate_gens - 1:
+                genes, costs, skf = recorder.all
+                self.surrogate_model.fit(genes, costs, skf)
+            
+            if epoch >= init_surrogate_gens:
+                (train_genes, train_costs, train_skf), (test_genes, test_costs, test_skf) = recorder.last_train_test_split
+                if self.surrogate_model.init_before_fit:
+                    genes, costs, skf = recorder.all_exclude_last
+                
+                    train_genes = np.concatenate((train_genes, genes))
+                    train_costs = np.concatenate((train_costs, costs))
+                    train_skf = np.concatenate((train_skf, skf))
+
+                self.surrogate_model.fit(train_genes, train_costs, train_skf)
+
+        
+        
 
         #print
         self.render_process((cur_epoch+1)/nb_generations, ['Cost'], [self.history_cost[-1]], use_sys= True)
         
         
-        inds = population.get_all_inds()
-        return np.stack([ind.genes for ind in inds]), np.stack([ind.fcost for ind in inds]), \
-                np.stack([ind.skill_factor for ind in inds]), population, offsprings
+        population.update_rank()
+        
+        # selection
+        self.selection(population, [nb_inds_each_task] * len(self.tasks))
                 
 
 

@@ -114,6 +114,11 @@ class SubPopulation:
         self.scalar_fitness: np.ndarray = None
         self.update_rank()
         
+    def evaluate(self):
+         for ind in self.ls_inds:
+            ind.skill_factor = self.skill_factor
+            ind.fcost = self.task(ind.genes)
+        
     def __len__(self): 
         return len(self.ls_inds)
 
@@ -137,8 +142,6 @@ class SubPopulation:
 
 
     def __addIndividual__(self, individual: Individual, update_rank = False):
-        if individual.fcost is None:
-            individual.fcost = self.task(individual.genes)
         self.ls_inds.append(individual)
         if update_rank:
             self.update_rank()

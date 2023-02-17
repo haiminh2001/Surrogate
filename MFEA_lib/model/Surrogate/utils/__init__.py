@@ -1,2 +1,2 @@
-from .recorder import BaseRecorder, InMemRecorder, InMemRecorderNumpy
+from .recorder import BaseRecorder, InMemRecorder, InMemRecorderNumpy, NoneRecorder
 from .SubsetSelection import BaseSubsetSelection
