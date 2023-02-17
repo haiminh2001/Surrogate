@@ -21,7 +21,6 @@ class betterModel(AbstractModel.model):
         recorder_class: Type= Optional,
         subset_selection: Type = Optional,
         surrogate_params: dict = {},
-        init_before_fit: bool = False,
         *args, **kwargs):
         
         if use_surrogate:
@@ -87,6 +86,7 @@ class betterModel(AbstractModel.model):
                         train_genes = np.concatenate((train_genes, genes))
                         train_costs = np.concatenate((train_costs, costs))
                         train_skf = np.concatenate((train_skf, skf))
+
                     self.surrogate_model.fit(train_genes, train_costs, train_skf)
                     
                         
