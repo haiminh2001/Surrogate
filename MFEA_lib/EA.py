@@ -116,12 +116,14 @@ class SubPopulation:
         
     def pseudo_evaluate(self):
         for i in range(len(self.ls_inds)):
-            self.ls_inds[i].fcost_for_eval = self.task(self.ls_inds[i].genes) if self.ls_inds[i].fcost == None else self.ls_inds[i].fcost
+            self.ls_inds[i].fcost_for_eval = self.task(self.ls_inds[i].genes) if self.ls_inds[i].fcost is None else self.ls_inds[i].fcost
                 
     def evaluate(self):
         for i in range(len(self.ls_inds)):
-            if self.ls_inds[i].fcost == None:
+            if self.ls_inds[i].fcost is None:
                 self.ls_inds[i].fcost = self.task(self.ls_inds[i].genes)
+            if self.ls_inds[i].fcost_for_eval is None:
+                self.ls_inds[i].fcost_for_eval = self.task(self.ls_inds[i].genes)
         self.update_rank()
         
     def __len__(self): 
@@ -334,7 +336,10 @@ class Population:
     def update_rank(self):
         for subPop in self:
             subPop.update_rank()
-        return None
+            
+    def update_rank_real(self):
+        for subPop in self:
+            subPop.update_rank_real()
 
     def __add__(self, other):
         assert self.nb_tasks == other.nb_tasks
@@ -374,6 +379,20 @@ class MOO_SubPopulation(SubPopulation):
         self.ls_inds.sort(key=functools.cmp_to_key(compare))
         self.factorial_rank = np.arange(len(self.ls_inds))+1
         self.scalar_fitness = 1 / self.factorial_rank
+        
+    def update_rank_real(self):
+        fitness = np.array([ind.fcost_for_eval for ind in self.ls_inds])
+        fronts = fast_non_dominated_sort(fitness)
+        fun = FunctionalDiversity(calc_crowding_distance, filter_out_duplicates=False)
+        for k, front in enumerate(fronts):
+            crowding_of_front = fun.do(fitness[front, :],n_remove=0)
+            for i,idx in enumerate(front):
+                self.ls_inds[idx].nf = k
+                self.ls_inds[idx].cd = crowding_of_front[i] 
+        self.igd_real = IGD(self.task.pareto_front, zero_to_one=False).do(fitness)  
+        # self.ls_inds.sort(key=functools.cmp_to_key(compare))
+        # self.factorial_rank = np.arange(len(self.ls_inds))+1
+        # self.scalar_fitness = 1 / self.factorial_rank
         
     def getSolveInd(self):
         solve = []

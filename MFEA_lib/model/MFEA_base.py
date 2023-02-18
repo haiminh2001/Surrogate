@@ -23,11 +23,12 @@ class betterModel(AbstractModel.model):
         surrogate_params: dict = {},
         *args, **kwargs):
         
+        self.use_surrogate = use_surrogate
         if use_surrogate:
             self.surrogate_model = surrogate_model
             self.surrogate_params = surrogate_params
             self.recorder_class = recorder_class
-            self.use_surrogate = use_surrogate
+            
             self.subset_selection = subset_selection
             dims = np.array([task.dims for task in tasks])
             num_objs = [task.num_objs for task in tasks]
@@ -41,7 +42,7 @@ class betterModel(AbstractModel.model):
     
     def fit(self, nb_generations, rmp = 0.3, nb_inds_each_task = 100,
             evaluate_initial_skillFactor = True, init_surrogate_gens = 5
-            , start_eval = 6, is_moo = False, test_amount = 0.1, *args, **kwargs) -> list:
+            , start_eval = 6, is_moo = False, test_amount = 0.8, *args, **kwargs) -> list:
         super().fit(*args, **kwargs)
         
         # initialize population
@@ -55,16 +56,19 @@ class betterModel(AbstractModel.model):
         )
       
         # save history
-        def update_non_moo():
+        def update_non_moo(population):
             self.history_cost.append([ind.fcost for ind in population.get_solves()])
         
-        def update_moo():
-            self.history_cost.append([subpop.igd for subpop in population])
+        def update_moo(population):
+            self.history_cost.append([subpop.igd_real for subpop in population])
         
         self.update_history = update_moo if is_moo else update_non_moo
         
         population.evaluate()
-        self.update_history()
+        population.update_rank()
+        population.update_rank_real()
+        
+        self.update_history(population)
 
         self.render_process(0, ['Cost'], [self.history_cost[-1]], use_sys= True)
                     
@@ -72,7 +76,7 @@ class betterModel(AbstractModel.model):
               if self.use_surrogate else NoneRecorder()) as recorder:
             for epoch in range(nb_generations):
                 #evo step
-                self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population, epoch, recorder, init_surrogate_gens)
+                population = self.epoch_step(rmp, epoch, nb_inds_each_task, nb_generations, population, epoch, recorder, init_surrogate_gens)
                 
                     
                         
@@ -136,42 +140,40 @@ class betterModel(AbstractModel.model):
                 preds = self.surrogate_model.predict(offsprings_test)
                 test_inds = offsprings_test.get_all_inds()
                 
+                offsprings_test.evaluate()
+                # print(np.mean(self.surrogate_model.evaluate(offsprings_test), axis = 0))
                 for i, pred in enumerate(preds):
-                    print(pred)
                     test_inds[i].fcost = pred
                 
                 
-                for ind in offsprings_test.get_all_inds():
-                    assert ind.fcost != None
-                
                 offsprings = offsprings_train + offsprings_test
+                
             else:
                 offsprings.evaluate()
                 
                 
         else:
+            
             offsprings.evaluate()
+            
         
-        for ind in offsprings.get_all_inds():
-            assert ind.fcost != None
 
         #print
         self.render_process((cur_epoch+1)/nb_generations, ['Cost'], [self.history_cost[-1]], use_sys= True)
         
         # merge and update rank
-        
         population = population + offsprings
         
-        
         population.update_rank()
+        population.update_rank_real()
         
         # save history
-        self.update_history()
+        self.update_history(population)
         
         
         # selection
         self.selection(population, [nb_inds_each_task] * len(self.tasks))
                 
 
-
+        return population
     

@@ -185,6 +185,5 @@ class ZDT_Task(AbstractTask):
             
     
     def __call__(self, X: np.ndarray):
-
         return self.func(np.clip(X[:self.dim], self.low, self.up), *self.args)
 

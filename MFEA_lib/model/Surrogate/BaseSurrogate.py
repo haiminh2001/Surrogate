@@ -72,38 +72,36 @@ class BaseSurrogate:
             index = skf == i 
             
             if get_cost or get_pseudo:
-                yield genes[index], costs[index]
+                yield genes[index], costs[index], index
             else:
-                yield genes[index]
+                yield genes[index], index
         
     def fit(self, population):
         assert self.is_init, 'Surrogate model not initialized!!'
         
-        for i, (X, y) in enumerate(self.prepare_data(population, get_cost= True)):
+        for i, (X, y, index) in enumerate(self.prepare_data(population, get_cost= True)):
             if len(y):
                 assert len(X) == len(y)
                 self.models[i].fit(X, y)
     
     def predict(self, population):
         assert self.is_init, 'Surrogate model not initialized!!'
-        rs = []
-        for i, X in enumerate(self.prepare_data(population, get_cost= False)):
+        #NOTE: hard code dim 1 = 2
+        rs = np.empty((len(population), 2), dtype = np.float64)
+        for i, (X, index) in enumerate(self.prepare_data(population, get_cost= False)):
             assert len(X)
-            rs.append(self.models[i].predict(X))
-            # else:
-            #     rs.append([])
+            rs[index] = np.array(self.models[i].predict(X)).T
         
         return rs
     
     def evaluate(self, population):
         assert self.is_init, 'Surrogate model not initialized!!'
         population.pseudo_evaluate()
-        for i, (X, y) in enumerate(self.prepare_data(population, get_cost = False, get_pseudo = True)):
-            if len(y):
-                assert len(X) == len(y)
-                yield self.models[i].evaluate(X, y)
-            else:
-                yield None
+        rs = np.empty((len(population), 2), dtype = np.float64)
+        for i, (X, y, index) in enumerate(self.prepare_data(population, get_cost = False, get_pseudo = True)):
+            assert len(X) == len(y)
+            rs[index] =  np.array(self.models[i].evaluate(X, y)).T
+        return rs
     
 class MOO_BaseSubpopSurrogate(BaseSubpopSurrogate):
     def __init__(self, single_model_class: Type, eval_metric = MAPE, retrain_all_data = False):
